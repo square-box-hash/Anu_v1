@@ -1,19 +1,29 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
 import { cx, groupByDay, relativeTime } from "@/lib/utils";
 import Logo from "./Logo";
-import { Bolt, Pencil, Plus, Search, Settings, Terminal, Trash, X } from "./Icons";
+import { Bolt, LogOut, Pencil, Plus, Search, Settings, Terminal, Trash, X } from "./Icons";
 import { StatusDot } from "./ui";
+
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) ?? "U").toUpperCase();
+}
 
 export default function Sidebar({
   onClose,
   onOpenSettings,
+  onOpenAccount,
 }: {
   onClose?: () => void;
   onOpenSettings: () => void;
+  onOpenAccount: () => void;
 }) {
+  const { user, hasPasswordProvider, signOutUser } = useAuth();
   const store = useStore();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
@@ -33,6 +43,13 @@ export default function Sidebar({
   const groups = groupByDay(filtered);
   const enabledServers = store.servers.filter((s) => s.enabled).length;
   const enabledSkills = store.skills.filter((s) => s.enabled).length;
+
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "Account";
+  const subtitle = !hasPasswordProvider
+    ? "Set up password"
+    : user?.emailVerified
+      ? user.email ?? "Verified account"
+      : "Verify email to sync";
 
   return (
     <aside className="flex h-full w-[268px] shrink-0 flex-col border-r border-line bg-soft/70">
@@ -180,20 +197,58 @@ export default function Sidebar({
             harness
           </span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg px-1 py-1">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-accent to-fuchsia-500 text-[10.5px] font-bold text-white">
-            GM
-          </div>
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-[12px] font-medium text-ink">Gourav Mandi</div>
-            <div className="truncate text-[10px] text-faint">Free workspace</div>
-          </div>
+        <div className="flex items-center gap-1.5 rounded-lg px-1 py-1">
           <button
+            type="button"
+            onClick={() => {
+              onOpenAccount();
+              onClose?.();
+            }}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-white/[0.05]"
+            title="Account & password settings"
+          >
+            {user?.photoURL ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.photoURL}
+                alt={displayName}
+                referrerPolicy="no-referrer"
+                className="h-7 w-7 shrink-0 rounded-full border border-line object-cover"
+              />
+            ) : (
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-fuchsia-500 text-[10.5px] font-bold text-white">
+                {initialsFor(displayName)}
+              </div>
+            )}
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-[12px] font-medium text-ink">{displayName}</div>
+              <div
+                className={cx(
+                  "truncate text-[10px]",
+                  !hasPasswordProvider || !user?.emailVerified ? "text-amber-300/90" : "text-faint",
+                )}
+              >
+                {subtitle}
+              </div>
+            </div>
+          </button>
+          <button
+            type="button"
             onClick={onOpenSettings}
             className="rounded-md p-1.5 text-muted transition-colors hover:bg-white/5 hover:text-ink"
             aria-label="Settings"
+            title="Workspace settings"
           >
             <Settings className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void signOutUser()}
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-rose-500/15 hover:text-rose-300"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
