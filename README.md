@@ -74,6 +74,12 @@ lib/
   providers/gemini.ts provider adapter (SSE streaming)
 ```
 
+## Brand and type
+
+- **Logo** — `public/logo.png` (transparent), with `app/icon.png` and `app/apple-icon.png` generated from the same mark for the favicon.
+- **Display serif** — Instrument Serif (regular + italic), self-hosted in `app/fonts/` and loaded through `next/font/local`, so there is no build-time network fetch and no layout shift.
+- **UI sans** — Inter (variable), also self-hosted.
+
 ## Design notes
 
 Near-black canvas (`#050408`) with a faint grid and a cursor-following violet spotlight, panels on

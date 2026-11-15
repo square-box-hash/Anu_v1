@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { MODELS } from "@/lib/types";
 import { cx } from "@/lib/utils";
+import Logo from "./Logo";
 import Message from "./Message";
 import Composer, { focusComposer } from "./Composer";
 import type { PanelTab } from "./RightPanel";
@@ -108,6 +109,8 @@ export default function ChatView({
         {messages.length === 0 ? (
           <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center px-6 py-14 sm:px-10">
             <div className="animate-rise">
+              <Logo className="mb-7 h-14 w-14 drop-shadow-[0_0_22px_rgba(34,211,238,0.32)]" />
+
               <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
                 <span className="h-1 w-1 rounded-full bg-accent-soft" />
                 {model.id}

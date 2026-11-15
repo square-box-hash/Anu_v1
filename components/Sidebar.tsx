@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { cx, groupByDay, relativeTime } from "@/lib/utils";
+import Logo from "./Logo";
 import { Bolt, Pencil, Plus, Search, Settings, Terminal, Trash, X } from "./Icons";
 import { StatusDot } from "./ui";
 
@@ -37,11 +38,9 @@ export default function Sidebar({
     <aside className="flex h-full w-[268px] shrink-0 flex-col border-r border-line bg-soft/70">
       <div className="flex items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2.5">
-          <div className="relative flex h-7 w-7 items-center justify-center rounded-lg border border-accent/40 bg-gradient-to-br from-accent/40 to-accent/5">
-            <span className="h-2 w-2 rounded-full bg-accent-pale shadow-[0_0_12px_2px_rgba(167,139,250,0.7)]" />
-          </div>
+          <Logo className="h-8 w-8 drop-shadow-[0_0_10px_rgba(34,211,238,0.35)]" />
           <div className="leading-none">
-            <div className="text-[13.5px] font-semibold tracking-tight text-ink">Anu</div>
+            <div className="font-serif text-[16px] leading-none tracking-tight text-ink">Anu</div>
             <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.18em] text-faint">chat workspace</div>
           </div>
         </div>
