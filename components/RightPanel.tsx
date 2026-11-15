@@ -8,6 +8,7 @@ import { cx } from "@/lib/utils";
 import {
   Bolt,
   Check,
+  Chevron,
   Layers,
   Link,
   Plus,
@@ -17,6 +18,7 @@ import {
   Trash,
   X,
 } from "./Icons";
+import SkillDialog from "./SkillDialog";
 import { Field, SectionTitle, StatusDot, Toggle, inputClass } from "./ui";
 
 export type PanelTab = "skills" | "connectors" | "harness" | "settings";
@@ -40,33 +42,21 @@ function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
-  const [preview, setPreview] = useState<Record<string, string>>({});
+  const [openSkill, setOpenSkill] = useState<string | null>(null);
   const enabledCount = store.repoSkills.filter((skill) => store.enabledRepoSkills.includes(skill.slug)).length;
 
-  const togglePreview = async (slug: string) => {
-    if (preview[slug]) {
-      setPreview((current) => {
-        const next = { ...current };
-        delete next[slug];
-        return next;
-      });
-      return;
-    }
-    setPreview((current) => ({ ...current, [slug]: "Loading…" }));
-    try {
-      const res = await fetch(`/api/skills?slug=${encodeURIComponent(slug)}`);
-      const data = (await res.json()) as { ok?: boolean; body?: string; error?: string };
-      setPreview((current) => ({
-        ...current,
-        [slug]: data.ok ? data.body ?? "" : `Could not load this skill: ${data.error ?? "unknown error"}`,
-      }));
-    } catch {
-      setPreview((current) => ({ ...current, [slug]: "Could not load this skill." }));
-    }
-  };
+  const dialogSkill = store.repoSkills.find((skill) => skill.slug === openSkill) ?? null;
 
   return (
     <div className="space-y-5">
+      {dialogSkill ? (
+        <SkillDialog
+          skill={dialogSkill}
+          enabled={store.enabledRepoSkills.includes(dialogSkill.slug)}
+          onToggle={() => store.toggleRepoSkill(dialogSkill.slug)}
+          onClose={() => setOpenSkill(null)}
+        />
+      ) : null}
       <section className="space-y-2.5">
         <div className="flex items-center gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">Workspace</h3>
@@ -97,13 +87,23 @@ function SkillsTab() {
           <div className="space-y-2">
             {store.repoSkills.map((skill) => {
               const enabled = store.enabledRepoSkills.includes(skill.slug);
-              const open = Boolean(preview[skill.slug]);
               return (
                 <div
                   key={skill.slug}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpenSkill(skill.slug)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setOpenSkill(skill.slug);
+                    }
+                  }}
                   className={cx(
-                    "rounded-xl border transition-colors",
-                    enabled ? "border-accent/35 bg-accent/[0.07]" : "border-line bg-white/[0.02] hover:border-linestrong",
+                    "cursor-pointer rounded-xl border transition-all",
+                    enabled
+                      ? "border-accent/35 bg-accent/[0.07] hover:border-accent/60"
+                      : "border-line bg-white/[0.02] hover:border-linestrong hover:bg-white/[0.04]",
                   )}
                 >
                   <div className="flex items-start gap-2 p-2.5">
@@ -119,7 +119,9 @@ function SkillsTab() {
                       </div>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-faint">{skill.description}</p>
                     </div>
-                    <Toggle checked={enabled} onChange={() => store.toggleRepoSkill(skill.slug)} label={skill.name} />
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <Toggle checked={enabled} onChange={() => store.toggleRepoSkill(skill.slug)} label={skill.name} />
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 border-t border-line/70 px-2.5 py-1.5">
@@ -134,19 +136,12 @@ function SkillsTab() {
                     {skill.files.length > 2 ? (
                       <span className="font-mono text-[9px] text-faint">+{skill.files.length - 2}</span>
                     ) : null}
-                    <button
-                      onClick={() => void togglePreview(skill.slug)}
-                      className="ml-auto rounded px-1.5 py-[2px] text-[10px] text-faint transition-colors hover:bg-white/5 hover:text-accent-pale"
-                    >
-                      {open ? "Hide" : "Preview"}
-                    </button>
+                    <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-faint transition-colors group-hover:text-accent-pale">
+                      Open
+                      <Chevron className="h-2.5 w-2.5 -rotate-90" />
+                    </span>
                   </div>
 
-                  {open ? (
-                    <pre className="max-h-[240px] overflow-auto border-t border-line/70 px-2.5 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-ink/75">
-                      {preview[skill.slug]}
-                    </pre>
-                  ) : null}
                 </div>
               );
             })}
