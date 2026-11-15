@@ -40,125 +40,149 @@ function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [preview, setPreview] = useState<Record<string, string>>({});
   const enabledCount = store.repoSkills.filter((skill) => store.enabledRepoSkills.includes(skill.slug)).length;
 
+  const togglePreview = async (slug: string) => {
+    if (preview[slug]) {
+      setPreview((current) => {
+        const next = { ...current };
+        delete next[slug];
+        return next;
+      });
+      return;
+    }
+    setPreview((current) => ({ ...current, [slug]: "Loading…" }));
+    try {
+      const res = await fetch(`/api/skills?slug=${encodeURIComponent(slug)}`);
+      const data = (await res.json()) as { ok?: boolean; body?: string; error?: string };
+      setPreview((current) => ({
+        ...current,
+        [slug]: data.ok ? data.body ?? "" : `Could not load this skill: ${data.error ?? "unknown error"}`,
+      }));
+    } catch {
+      setPreview((current) => ({ ...current, [slug]: "Could not load this skill." }));
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      <div>
-        <SectionTitle
-          right={
-            <span className="font-mono text-[10px] text-faint">
-              {enabledCount}/{store.repoSkills.length}
-            </span>
-          }
-        >
-          Workspace skills
-        </SectionTitle>
-        <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Read from <code className="font-mono text-accent-pale">skills/&lt;name&gt;/SKILL.md</code>. The model sees only
-          the name and description, then calls <code className="font-mono text-accent-pale">load_skill</code> when one
-          applies — so the full text costs nothing until it is used.
-        </p>
-      </div>
-
-      {store.repoSkills.length === 0 ? (
-        <Empty>
-          No SKILL.md files found. Add a folder under <code className="font-mono text-accent-pale">skills/</code> with a{" "}
-          <code className="font-mono text-accent-pale">name</code> and{" "}
-          <code className="font-mono text-accent-pale">description</code> in its frontmatter, then redeploy.
-        </Empty>
-      ) : (
-        <div className="space-y-1.5">
-          {store.repoSkills.map((skill) => {
-            const enabled = store.enabledRepoSkills.includes(skill.slug);
-            return (
-              <div
-                key={skill.slug}
-                className={cx(
-                  "rounded-xl border p-2.5 transition-colors",
-                  enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
-                )}
-              >
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate font-mono text-[11.5px] text-ink">{skill.name}</span>
-                      {skill.files.length ? (
-                        <span className="shrink-0 font-mono text-[9px] text-faint">{skill.files.length} files</span>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 line-clamp-3 text-[11px] leading-relaxed text-faint">{skill.description}</p>
-                    {skill.files.length ? (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {skill.files.slice(0, 4).map((file) => (
-                          <span
-                            key={file}
-                            className="rounded border border-line bg-black/25 px-1.5 py-[1px] font-mono text-[9px] text-muted"
-                          >
-                            {file}
-                          </span>
-                        ))}
-                        {skill.files.length > 4 ? (
-                          <span className="font-mono text-[9px] text-faint">+{skill.files.length - 4}</span>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <Toggle
-                    checked={enabled}
-                    onChange={() => store.toggleRepoSkill(skill.slug)}
-                    label={skill.name}
-                  />
-                </div>
-              </div>
-            );
-          })}
+    <div className="space-y-5">
+      <section className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">Workspace</h3>
+          <span className="rounded-full border border-line px-1.5 py-[1px] font-mono text-[9.5px] text-muted">
+            {enabledCount}/{store.repoSkills.length}
+          </span>
+          <button
+            onClick={() => void store.refreshRepoSkills()}
+            className="ml-auto rounded-md p-1 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+            title="Rescan skills folder"
+            aria-label="Rescan skills folder"
+          >
+            <Refresh className="h-3.5 w-3.5" />
+          </button>
         </div>
-      )}
 
-      <button
-        onClick={() => void store.refreshRepoSkills()}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-line py-1.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-accent-pale"
-      >
-        <Refresh className="h-3 w-3" />
-        Rescan skills folder
-      </button>
-
-      <div className="border-t border-line pt-3">
-        <SectionTitle
-          right={
-            <span className="font-mono text-[10px] text-faint">
-              {store.skills.filter((s) => s.enabled).length}/{store.skills.length}
-            </span>
-          }
-        >
-          Inline instructions
-        </SectionTitle>
-        <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Quick rules typed here go into the system prompt on every turn. For anything long, use a SKILL.md instead.
+        <p className="text-[10.5px] leading-relaxed text-faint/90">
+          Only the name and description reach the model — the body loads when it calls{" "}
+          <code className="font-mono text-accent-pale">load_skill</code>.
         </p>
-      </div>
 
-      {store.skills.length === 0 ? (
-        <Empty>Nothing inline yet.</Empty>
-      ) : (
-        <div className="space-y-1.5">
-          {store.skills.map((skill) => (
-            <div
-              key={skill.id}
-              className={cx(
-                "rounded-xl border p-2.5 transition-colors",
-                skill.enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
-              )}
-            >
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <span className="truncate text-[12.5px] font-medium text-ink">{skill.name}</span>
-                  {skill.description ? (
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-faint">{skill.description}</p>
+        {store.repoSkills.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line px-3 py-4 text-center">
+            <p className="text-[11px] leading-relaxed text-faint">No SKILL.md files found.</p>
+            <p className="mt-1 font-mono text-[10px] text-faint/70">skills/&lt;name&gt;/SKILL.md</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {store.repoSkills.map((skill) => {
+              const enabled = store.enabledRepoSkills.includes(skill.slug);
+              const open = Boolean(preview[skill.slug]);
+              return (
+                <div
+                  key={skill.slug}
+                  className={cx(
+                    "rounded-xl border transition-colors",
+                    enabled ? "border-accent/35 bg-accent/[0.07]" : "border-line bg-white/[0.02] hover:border-linestrong",
+                  )}
+                >
+                  <div className="flex items-start gap-2 p-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={cx(
+                            "h-1.5 w-1.5 shrink-0 rounded-full",
+                            enabled ? "bg-accent-soft" : "bg-faint/60",
+                          )}
+                        />
+                        <span className="truncate font-mono text-[11.5px] text-ink">{skill.name}</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-faint">{skill.description}</p>
+                    </div>
+                    <Toggle checked={enabled} onChange={() => store.toggleRepoSkill(skill.slug)} label={skill.name} />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 border-t border-line/70 px-2.5 py-1.5">
+                    {skill.files.slice(0, 2).map((file) => (
+                      <span
+                        key={file}
+                        className="max-w-[130px] truncate rounded border border-line bg-black/25 px-1.5 py-[1px] font-mono text-[9px] text-muted"
+                      >
+                        {file}
+                      </span>
+                    ))}
+                    {skill.files.length > 2 ? (
+                      <span className="font-mono text-[9px] text-faint">+{skill.files.length - 2}</span>
+                    ) : null}
+                    <button
+                      onClick={() => void togglePreview(skill.slug)}
+                      className="ml-auto rounded px-1.5 py-[2px] text-[10px] text-faint transition-colors hover:bg-white/5 hover:text-accent-pale"
+                    >
+                      {open ? "Hide" : "Preview"}
+                    </button>
+                  </div>
+
+                  {open ? (
+                    <pre className="max-h-[240px] overflow-auto border-t border-line/70 px-2.5 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-ink/75">
+                      {preview[skill.slug]}
+                    </pre>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-2.5 border-t border-line pt-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">Inline</h3>
+          <span className="rounded-full border border-line px-1.5 py-[1px] font-mono text-[9.5px] text-muted">
+            {store.skills.filter((skill) => skill.enabled).length}/{store.skills.length}
+          </span>
+        </div>
+
+        <p className="text-[10.5px] leading-relaxed text-faint/90">
+          One-liners that ride in the system prompt every turn. Keep them short.
+        </p>
+
+        {store.skills.length > 0 ? (
+          <div className="space-y-1.5">
+            {store.skills.map((skill) => (
+              <div
+                key={skill.id}
+                className={cx(
+                  "flex items-start gap-2 rounded-xl border p-2.5 transition-colors",
+                  skill.enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="truncate text-[12px] font-medium text-ink">{skill.name}</span>
+                  {skill.description ? (
+                    <p className="mt-0.5 line-clamp-2 text-[10.5px] leading-relaxed text-faint">{skill.description}</p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
                   <button
                     onClick={() => store.removeSkill(skill.id)}
                     className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
@@ -169,19 +193,21 @@ function SkillsTab() {
                   <Toggle checked={skill.enabled} onChange={() => store.toggleSkill(skill.id)} label={skill.name} />
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        ) : null}
 
-      <div className="rounded-xl border border-line bg-black/25 p-2.5">
-        <SectionTitle>Add inline instruction</SectionTitle>
-        <div className="mt-2 space-y-1.5">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className={inputClass} />
+        <div className="space-y-1.5 rounded-xl border border-line bg-black/25 p-2.5">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Rule name"
+            className={inputClass}
+          />
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="What should it do?"
+            placeholder="One line — e.g. always answer with a table"
             className={inputClass}
           />
           <button
@@ -193,10 +219,10 @@ function SkillsTab() {
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
           >
             <Plus className="h-3 w-3" />
-            Add instruction
+            Add
           </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
