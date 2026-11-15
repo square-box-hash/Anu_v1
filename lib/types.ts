@@ -7,10 +7,23 @@ export interface Attachment {
   type: string;
 }
 
+export interface ToolCall {
+  id: string;
+  server: string;
+  name: string;
+  args: unknown;
+  ok?: boolean;
+  content?: string;
+  error?: string;
+  pending?: boolean;
+}
+
 export interface Message {
   id: string;
   role: Role;
   content: string;
+  toolCalls?: ToolCall[];
+  notices?: string[];
   /** Reasoning tokens, when the model returns them. */
   thinking?: string;
   attachments?: Attachment[];
@@ -42,8 +55,12 @@ export interface McpServer {
   name: string;
   transport: McpTransport;
   target: string;
+  headers?: Record<string, string>;
   enabled: boolean;
   status: McpStatus;
+  /** Tool names reported by the server, filled in after a check. */
+  tools?: string[];
+  error?: string;
 }
 
 export interface HarnessConfig {
@@ -70,7 +87,13 @@ export interface ChatRequest {
   temperature?: number;
   attachments?: { name: string; type: string; size: number }[];
   skills?: string[];
-  mcpServers?: { name: string; transport: McpTransport }[];
+  mcpServers?: {
+    id: string;
+    name: string;
+    transport: McpTransport;
+    target: string;
+    headers?: Record<string, string>;
+  }[];
   harness?: { enabled: boolean; agentMode: boolean; maxSteps: number };
 }
 

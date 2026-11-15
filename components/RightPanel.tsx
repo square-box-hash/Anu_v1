@@ -125,6 +125,27 @@ function ConnectorsTab() {
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [transport, setTransport] = useState<McpTransport>("stdio");
+  const [config, setConfig] = useState("");
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const PRESETS = [
+    { label: "filesystem", transport: "stdio" as McpTransport, target: "npx -y @modelcontextprotocol/server-filesystem ." },
+    { label: "memory", transport: "stdio" as McpTransport, target: "npx -y @modelcontextprotocol/server-memory" },
+    { label: "thinking", transport: "stdio" as McpTransport, target: "npx -y @modelcontextprotocol/server-sequential-thinking" },
+    { label: "http url", transport: "http" as McpTransport, target: "https://example.com/mcp" },
+  ];
+
+  const importConfig = async () => {
+    setBusy(true);
+    const result = await store.importServers(config);
+    setBusy(false);
+    setFeedback(result.error ?? `Imported ${result.added} server${result.added === 1 ? "" : "s"} — checking tools…`);
+    if (!result.error) {
+      setConfig("");
+      for (const id of result.ids) void store.refreshServer(id);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -139,12 +160,12 @@ function ConnectorsTab() {
           MCP servers
         </SectionTitle>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Model Context Protocol connectors expose tools to the model. None are connected by default.
+          Connected servers expose their tools to the model for the current chat. Nothing is connected by default.
         </p>
       </div>
 
       {store.servers.length === 0 ? (
-        <Empty>No servers connected. Add a stdio command or an HTTP endpoint below.</Empty>
+        <Empty>No servers yet. Paste a config below or add one by hand.</Empty>
       ) : (
         <div className="space-y-1.5">
           {store.servers.map((server) => (
@@ -159,12 +180,43 @@ function ConnectorsTab() {
                     <span className="rounded border border-line bg-black/30 px-1 font-mono text-[8.5px] uppercase tracking-wider text-muted">
                       {server.transport}
                     </span>
+                    {server.tools?.length ? (
+                      <span className="ml-auto shrink-0 font-mono text-[9.5px] text-faint">
+                        {server.tools.length} tools
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1 truncate font-mono text-[10px] text-faint" title={server.target}>
                     {server.target}
                   </p>
+                  {server.error ? (
+                    <p className="mt-1 break-words text-[10.5px] leading-relaxed text-rose-300/80">{server.error}</p>
+                  ) : null}
+                  {server.tools?.length ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {server.tools.slice(0, 8).map((tool) => (
+                        <span
+                          key={tool}
+                          className="rounded border border-line bg-black/25 px-1.5 py-[1px] font-mono text-[9.5px] text-muted"
+                        >
+                          {tool}
+                        </span>
+                      ))}
+                      {server.tools.length > 8 ? (
+                        <span className="font-mono text-[9.5px] text-faint">+{server.tools.length - 8}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => void store.refreshServer(server.id)}
+                    className="rounded p-1 text-faint transition-colors hover:bg-white/10 hover:text-ink"
+                    aria-label={`Check ${server.name}`}
+                    title="Check connection and list tools"
+                  >
+                    <Refresh className="h-3 w-3" />
+                  </button>
                   <button
                     onClick={() => store.removeServer(server.id)}
                     className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
@@ -181,7 +233,51 @@ function ConnectorsTab() {
       )}
 
       <div className="rounded-xl border border-line bg-black/25 p-2.5">
-        <SectionTitle>Connect a server</SectionTitle>
+        <SectionTitle right={<span className="font-mono text-[9px] uppercase tracking-wider text-faint">fastest</span>}>
+          Paste a config
+        </SectionTitle>
+        <p className="mt-1 text-[10.5px] leading-relaxed text-faint">
+          Accepts the same shape Claude Desktop uses:{" "}
+          <code className="font-mono text-accent-pale">{'{"mcpServers":{…}}'}</code> with either{" "}
+          <code className="font-mono text-accent-pale">command</code> or{" "}
+          <code className="font-mono text-accent-pale">url</code>.
+        </p>
+        <textarea
+          value={config}
+          onChange={(e) => setConfig(e.target.value)}
+          rows={4}
+          spellCheck={false}
+          placeholder={'{\n  "mcpServers": {\n    "filesystem": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]\n    }\n  }\n}'}
+          className={cx(inputClass, "mt-1.5 resize-none font-mono text-[10.5px] leading-relaxed")}
+        />
+        <button
+          onClick={() => void importConfig()}
+          disabled={!config.trim() || busy}
+          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25 disabled:opacity-40"
+        >
+          <Link className="h-3 w-3" />
+          {busy ? "Importing…" : "Import servers"}
+        </button>
+        {feedback ? <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">{feedback}</p> : null}
+      </div>
+
+      <div className="rounded-xl border border-line bg-black/25 p-2.5">
+        <SectionTitle>Add by hand</SectionTitle>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              onClick={() => {
+                setTransport(preset.transport);
+                setTarget(preset.target);
+                setName(preset.label);
+              }}
+              className="rounded-full border border-line px-2 py-[3px] text-[10px] text-muted transition-colors hover:border-accent/40 hover:text-accent-pale"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
         <div className="mt-2 space-y-1.5">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Server name" className={inputClass} />
           <div className="flex gap-1.5">
@@ -209,7 +305,7 @@ function ConnectorsTab() {
             }}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
           >
-            <Link className="h-3 w-3" />
+            <Plus className="h-3 w-3" />
             Connect
           </button>
         </div>

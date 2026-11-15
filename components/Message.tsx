@@ -6,9 +6,9 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import type { Message as Msg } from "@/lib/types";
+import type { Message as Msg, ToolCall } from "@/lib/types";
 import { cx, formatBytes } from "@/lib/utils";
-import { Check, Chevron, Copy, File, Image as ImageIcon, Refresh, Sparkles } from "./Icons";
+import { Check, Chevron, Copy, File, Image as ImageIcon, Refresh, Sparkles, Terminal } from "./Icons";
 
 /** Models sometimes emit \( … \) and \[ … \]; normalise to $ … $ / $$ … $$. */
 function normalizeMath(input: string): string {
@@ -81,6 +81,51 @@ function ThinkingBlock({
       {open ? (
         <div className="max-h-[280px] overflow-y-auto border-t border-line px-3 py-2.5 text-[12.5px] leading-[1.7] whitespace-pre-wrap text-faint">
           {text}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+
+function ToolCallCard({ call }: { call: ToolCall }) {
+  const [open, setOpen] = useState(Boolean(call.pending));
+  const status = call.pending ? "running" : call.ok ? "ok" : "error";
+  const tone =
+    status === "running" ? "text-accent-soft" : status === "ok" ? "text-emerald-300/90" : "text-rose-300/90";
+
+  return (
+    <div className="my-2 overflow-hidden rounded-xl border border-line bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/[0.03]"
+      >
+        <Terminal className={cx("h-3.5 w-3.5", status === "running" ? "animate-pulse text-accent-soft" : "text-faint")} />
+        <span className="truncate font-mono text-[11.5px] text-ink">{call.name}</span>
+        <span className="shrink-0 rounded border border-line px-1 font-mono text-[8.5px] uppercase tracking-wider text-faint">
+          {call.server}
+        </span>
+        <span className={cx("ml-auto shrink-0 font-mono text-[9.5px] uppercase tracking-[0.12em]", tone)}>{status}</span>
+        <Chevron className={cx("h-3 w-3 shrink-0 text-faint transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-line px-3 py-2.5">
+          <div>
+            <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">arguments</div>
+            <pre className="overflow-x-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-accent-pale/85">
+              {JSON.stringify(call.args ?? {}, null, 2)}
+            </pre>
+          </div>
+          {call.content || call.error ? (
+            <div>
+              <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">result</div>
+              <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-ink/80">
+                {call.error ?? call.content}
+              </pre>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -244,6 +289,25 @@ export default function Message({
           streaming={Boolean(message.pending)}
           hasContent={Boolean(message.content)}
         />
+      ) : null}
+
+      {message.toolCalls?.length ? (
+        <div className="mb-2">
+          {message.toolCalls.map((call) => (
+            <ToolCallCard key={call.id} call={call} />
+          ))}
+        </div>
+      ) : null}
+
+      {message.notices?.length ? (
+        <div className="mb-2 space-y-1">
+          {message.notices.map((notice, index) => (
+            <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-200/70">
+              <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-amber-300/70" />
+              <span className="min-w-0 break-words">{notice}</span>
+            </p>
+          ))}
+        </div>
       ) : null}
 
       {message.pending && !message.content ? (

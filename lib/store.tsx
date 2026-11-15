@@ -73,7 +73,9 @@ interface StoreValue extends Persisted {
   toggleSkill: (id: string) => void;
   addSkill: (name: string, description: string) => void;
   removeSkill: (id: string) => void;
-  addServer: (server: Pick<McpServer, "name" | "transport" | "target">) => void;
+  addServer: (server: Pick<McpServer, "name" | "transport" | "target" | "headers">) => void;
+  importServers: (json: string) => Promise<{ added: number; ids: string[]; error?: string }>;
+  refreshServer: (id: string) => Promise<void>;
   toggleServer: (id: string) => void;
   removeServer: (id: string) => void;
   updateHarness: (patch: Partial<HarnessConfig>) => void;
@@ -181,10 +183,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       attachments: messages
         .flatMap((m) => m.attachments ?? [])
         .map((a) => ({ name: a.name, type: a.type, size: a.size })),
-      skills: s.skills.filter((k) => k.enabled).map((k) => k.name),
+      skills: s.skills
+        .filter((k) => k.enabled)
+        .map((k) => (k.description ? `${k.name} — ${k.description}` : k.name)),
       mcpServers: s.servers
         .filter((server) => server.enabled)
-        .map((server) => ({ name: server.name, transport: server.transport })),
+        .map((server) => ({
+          id: server.id,
+          name: server.name,
+          transport: server.transport,
+          target: server.target,
+          headers: server.headers,
+        })),
       harness: {
         enabled: s.harness.enabled,
         agentMode: s.harness.agentMode,
@@ -225,14 +235,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const handleLine = (line: string) => {
           const trimmed = line.trim();
           if (!trimmed) return;
-          let event: { type?: string; text?: string };
+          let event: { type?: string; text?: string } & Record<string, unknown>;
           try {
-            event = JSON.parse(trimmed) as { type?: string; text?: string };
+            event = JSON.parse(trimmed) as { type?: string; text?: string } & Record<string, unknown>;
           } catch {
             return;
           }
+
+          const currentCalls = () =>
+            stateRef.current.chats.find((c) => c.id === chatId)?.messages.find((m) => m.id === botId)
+              ?.toolCalls ?? [];
+          const currentNotices = () =>
+            stateRef.current.chats.find((c) => c.id === chatId)?.messages.find((m) => m.id === botId)
+              ?.notices ?? [];
+
+          switch (event.type) {
+            case "tool_call": {
+              const call = event as unknown as { id: string; server: string; name: string; args: unknown };
+              patchMessage(chatId, botId, {
+                toolCalls: [
+                  ...currentCalls(),
+                  { id: call.id, server: call.server, name: call.name, args: call.args, pending: true },
+                ],
+              });
+              return;
+            }
+            case "tool_result": {
+              const result = event as unknown as { id: string; ok: boolean; content: string; error?: string };
+              patchMessage(chatId, botId, {
+                toolCalls: currentCalls().map((call) =>
+                  call.id === result.id
+                    ? { ...call, ok: result.ok, content: result.content, error: result.error, pending: false }
+                    : call,
+                ),
+              });
+              return;
+            }
+            case "notice": {
+              const notice = (event as unknown as { text: string }).text;
+              if (notice) patchMessage(chatId, botId, { notices: [...currentNotices(), notice] });
+              return;
+            }
+            default:
+              break;
+          }
+
           const text = event.text ?? "";
           if (!text) return;
+
           if (event.type === "thought") {
             think += text;
             patchMessage(chatId, botId, { thinking: think, pending: true });
@@ -382,15 +432,131 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, skills: s.skills.filter((k) => k.id !== id) }));
   }, []);
 
-  const addServer = useCallback((server: Pick<McpServer, "name" | "transport" | "target">) => {
-    if (!server.name.trim() || !server.target.trim()) return;
+  const addServer = useCallback(
+    (server: Pick<McpServer, "name" | "transport" | "target" | "headers">) => {
+      if (!server.name.trim() || !server.target.trim()) return;
+      setState((s) => ({
+        ...s,
+        servers: [...s.servers, { ...server, id: uid(), enabled: true, status: "connecting" as const }],
+      }));
+    },
+    [],
+  );
+
+  /** Accepts a Claude-Desktop style { mcpServers: { name: {...} } } block. */
+  const importServers = useCallback(async (json: string) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      return { added: 0, ids: [], error: "That isn't valid JSON." };
+    }
+
+    const root = parsed as { mcpServers?: Record<string, unknown> } & Record<string, unknown>;
+    const block = (root.mcpServers ?? root) as Record<string, unknown>;
+    if (!block || typeof block !== "object") return { added: 0, ids: [], error: "No mcpServers block found." };
+
+    const entries: McpServer[] = [];
+    for (const [name, raw] of Object.entries(block)) {
+      const config = raw as {
+        command?: string;
+        args?: string[];
+        url?: string;
+        type?: string;
+        transport?: string;
+        headers?: Record<string, string>;
+        env?: Record<string, string>;
+      };
+      if (!config || typeof config !== "object") continue;
+
+      if (config.url) {
+        const transport = (config.transport ?? config.type ?? "http") === "sse" ? "sse" : "http";
+        entries.push({
+          id: uid(),
+          name,
+          transport,
+          target: config.url,
+          headers: config.headers,
+          enabled: true,
+          status: "connecting",
+        });
+      } else if (config.command) {
+        const args = Array.isArray(config.args) ? config.args : [];
+        entries.push({
+          id: uid(),
+          name,
+          transport: "stdio",
+          target: [config.command, ...args].join(" "),
+          enabled: true,
+          status: "connecting",
+        });
+      }
+    }
+
+    if (!entries.length) return { added: 0, ids: [], error: "No usable server definitions found." };
+
+    const fresh = entries.filter((entry) => !stateRef.current.servers.some((x) => x.name === entry.name));
+    setState((s) => ({ ...s, servers: [...s.servers, ...fresh] }));
+    return { added: fresh.length, ids: fresh.map((entry) => entry.id) };
+  }, []);
+
+  const refreshServer = useCallback(async (id: string) => {
+    const server = stateRef.current.servers.find((item) => item.id === id);
+    if (!server) return;
+
     setState((s) => ({
       ...s,
-      servers: [
-        ...s.servers,
-        { ...server, id: uid(), enabled: true, status: "connected" as const },
-      ],
+      servers: s.servers.map((item) =>
+        item.id === id ? { ...item, status: "connecting" as const, error: undefined } : item,
+      ),
     }));
+
+    try {
+      const res = await fetch("/api/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          server: {
+            id: server.id,
+            name: server.name,
+            transport: server.transport,
+            target: server.target,
+            headers: server.headers,
+          },
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        tools?: { name: string }[];
+        error?: string;
+      };
+      setState((s) => ({
+        ...s,
+        servers: s.servers.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: data.ok ? ("connected" as const) : ("error" as const),
+                tools: data.tools?.map((tool) => tool.name) ?? [],
+                error: data.ok ? undefined : data.error,
+              }
+            : item,
+        ),
+      }));
+    } catch (error) {
+      setState((s) => ({
+        ...s,
+        servers: s.servers.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: "error" as const,
+                error: error instanceof Error ? error.message : "Could not reach /api/mcp",
+              }
+            : item,
+        ),
+      }));
+    }
   }, []);
 
   const toggleServer = useCallback((id: string) => {
@@ -444,6 +610,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addSkill,
       removeSkill,
       addServer,
+      importServers,
+      refreshServer,
       toggleServer,
       removeServer,
       updateHarness,
@@ -467,6 +635,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addSkill,
       removeSkill,
       addServer,
+      importServers,
+      refreshServer,
       toggleServer,
       removeServer,
       updateHarness,

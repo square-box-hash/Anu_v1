@@ -14,7 +14,7 @@ Live: https://anuv1.vercel.app/
 - **Chat history** — grouped by Today / Previous 7 days / Older, searchable, rename inline, delete, persisted in `localStorage`. `⌘K` / `Ctrl+K` starts a new chat.
 - **File attachments** — paperclip picker and drag-and-drop onto the composer, up to 8 files, chips with size/type, removable before sending. File metadata is sent with the request; the files themselves never leave the browser.
 - **Skills** — instruction packs you add yourself; enabled skills are sent with each request and shown in the header. Nothing is pre-installed.
-- **MCP connectors** — add Model Context Protocol servers over `stdio`, `http` or `sse` and toggle them per session. Nothing is pre-connected.
+- **MCP connectors, for real** — connect Model Context Protocol servers over `stdio`, `http` or `sse`. The server lists each server's tools at request time, hands them to the model as Gemini function declarations, runs whatever the model calls, feeds the results back and loops until the task is done. Every call appears in the transcript as a card with its arguments and output.
 - **Harness bridge** — endpoint, bearer token, agent mode, auto-approve tools, max steps per turn and a subagent list, all forwarded with the request.
 - **Config** — model picker, temperature, system prompt, clear-all-chats.
 - **Responsive** — collapsible sidebar, right context panel (`⌘B`); on phones the panel becomes a drawer that starts closed, the hero reflows to a single column, and the composer respects the safe area.
@@ -31,6 +31,59 @@ npm run dev                  # http://localhost:3000
 npm run build && npm start   # production
 npm run typecheck            # tsc --noEmit
 ```
+
+## Tools (MCP)
+
+Tools are real, not mocked. `/api/chat` connects to every enabled server, calls `listTools()`, converts each
+JSON Schema into a Gemini function declaration, and runs a function-calling loop:
+
+```
+user turn → Gemini streams → functionCall → MCP callTool → functionResponse → Gemini streams again → …
+```
+
+The loop is capped by the **Max steps** value in the Harness tab (default 6, hard cap 12).
+
+### Adding a server
+
+The fastest path is the **MCP** tab → *Paste a config*. It takes the same JSON Claude Desktop uses:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "my-http-server": {
+      "type": "http",
+      "url": "https://example.com/mcp",
+      "headers": { "Authorization": "Bearer …" }
+    }
+  }
+}
+```
+
+`command` → stdio transport, `url` → http (or sse when `type: "sse"`). Imported servers are checked
+immediately: the panel shows the tool names each one reported, or the error if it could not connect.
+The refresh icon re-checks a server at any time; the add form has one-click presets for the common
+`npx` servers.
+
+### Local test server
+
+`examples/echo-server.mjs` is a two-tool MCP server you can point the app at:
+
+```
+node examples/echo-server.mjs
+```
+
+Add it with transport `stdio` and target `node examples/echo-server.mjs` — the model then sees
+`echo` and `add`.
+
+### Deployment note
+
+`stdio` servers are spawned as child processes, which works locally and on a normal Node host but
+**not** on serverless platforms such as Vercel. On Vercel use `http`/`sse` servers, or self-host the
+app if you need `npx`-style servers.
 
 ## Model
 
@@ -60,7 +113,8 @@ app/
   layout.tsx          root layout + metadata
   page.tsx            renders the workspace
   globals.css         theme tokens, grid/glow background, scrollbars
-  api/chat/route.ts   POST endpoint, streams provider deltas
+  api/chat/route.ts   POST endpoint: tool loop + streamed events
+  api/mcp/route.ts    POST: connect to one MCP server and list its tools
 components/
   ChatApp.tsx         layout shell, drawers, keyboard shortcuts
   Sidebar.tsx         history, search, footer stats
@@ -70,6 +124,7 @@ components/
   RightPanel.tsx      Skills / MCP / Harness / Config tabs
   ui.tsx, Icons.tsx   primitives and icon set
 lib/
+  mcp.ts              MCP client pool: connect, listTools, callTool
   types.ts            domain types, model list
   store.tsx           state, persistence, streaming, regenerate
   providers/gemini.ts provider adapter (SSE streaming)
