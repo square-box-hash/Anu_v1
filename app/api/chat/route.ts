@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { streamGemini, toContents, toFunctionDeclarations } from "@/lib/providers/gemini";
 import type { Content, Part } from "@/lib/providers/gemini";
 import { callTool, listAllTools } from "@/lib/mcp";
+import { SKILL_TOOL_DECLARATIONS, SKILL_TOOL_NAMES, listSkills, runSkillTool } from "@/lib/skills";
 import type { McpServerConfig } from "@/lib/mcp";
 import type { ChatRequest } from "@/lib/types";
 
@@ -16,12 +17,22 @@ type Event =
   | { type: "tool_result"; id: string; ok: boolean; content: string; error?: string }
   | { type: "error"; text: string };
 
-function systemPromptFor(body: ChatRequest): string {
+const isSkillTool = (name: string) => (SKILL_TOOL_NAMES as readonly string[]).includes(name);
+
+function systemPromptFor(body: ChatRequest, skills: { name: string; description: string }[]): string {
   const blocks: string[] = [];
   if (body.systemPrompt?.trim()) blocks.push(body.systemPrompt.trim());
 
+  if (skills.length) {
+    blocks.push(
+      `Skills available in this workspace:\n${skills
+        .map((skill) => `- ${skill.name}: ${skill.description}`)
+        .join("\n")}\nCall load_skill(name) to read a skill before doing work it covers, and read_skill_file(skill, path) for its supporting files.`,
+    );
+  }
+
   if (body.skills?.length) {
-    blocks.push(`Active skills — follow these when they apply:\n${body.skills.map((s) => `- ${s}`).join("\n")}`);
+    blocks.push(`Inline instructions from the user — follow these when they apply:\n${body.skills.map((s) => `- ${s}`).join("\n")}`);
   }
 
   if (body.harness?.enabled) {
@@ -81,13 +92,22 @@ export async function POST(request: Request) {
           send({ type: "notice", text: `MCP server "${failure.server}" could not be reached: ${failure.message}` });
         }
 
-        const declarations = toFunctionDeclarations(tools);
+        const allSkills = await listSkills();
+        const enabledSlugs = body.repoSkills;
+        const activeSkills = enabledSlugs?.length
+          ? allSkills.filter((skill) => enabledSlugs.includes(skill.slug))
+          : allSkills;
+
+        const declarations = [
+          ...toFunctionDeclarations(tools),
+          ...(activeSkills.length ? SKILL_TOOL_DECLARATIONS : []),
+        ];
         if (declarations.length) {
           send({ type: "notice", text: `Tools available: ${declarations.map((d) => d.name).join(", ")}` });
         }
 
         const contents: Content[] = toContents(body.messages);
-        const systemPrompt = systemPromptFor(body);
+        const systemPrompt = systemPromptFor(body, activeSkills);
 
         for (let step = 0; step < maxSteps; step++) {
           const calls: { name: string; args: Record<string, unknown> }[] = [];
@@ -116,16 +136,19 @@ export async function POST(request: Request) {
           const responseParts: Part[] = [];
           for (const [index, call] of calls.entries()) {
             const id = `call_${step}_${index}`;
+            const skillCall = isSkillTool(call.name);
             const owner = tools.find((tool) => tool.qualified === call.name);
             send({
               type: "tool_call",
               id,
-              server: owner?.server ?? "unknown",
-              name: owner?.name ?? call.name,
+              server: skillCall ? "skill" : owner?.server ?? "unknown",
+              name: skillCall ? call.name : owner?.name ?? call.name,
               args: call.args,
             });
 
-            const result = await callTool(servers, call.name, call.args);
+            const result = skillCall
+              ? await runSkillTool(call.name, call.args)
+              : await callTool(servers, call.name, call.args);
             send({
               type: "tool_result",
               id,

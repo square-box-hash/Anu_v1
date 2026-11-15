@@ -17,8 +17,10 @@ import type {
   HarnessConfig,
   McpServer,
   Message,
+  RepoSkill,
   Settings,
   Skill,
+  ToolCall,
 } from "./types";
 import { titleFrom, uid } from "./utils";
 
@@ -28,6 +30,7 @@ interface Persisted {
   chats: Chat[];
   activeId: string | null;
   skills: Skill[];
+  enabledRepoSkills: string[];
   servers: McpServer[];
   harness: HarnessConfig;
   settings: Settings;
@@ -38,6 +41,7 @@ function defaults(): Persisted {
     chats: [],
     activeId: null,
     skills: [],
+    enabledRepoSkills: [],
     servers: [],
     harness: {
       enabled: false,
@@ -60,6 +64,9 @@ function defaults(): Persisted {
 
 interface StoreValue extends Persisted {
   activeChat: Chat | null;
+  repoSkills: RepoSkill[];
+  toggleRepoSkill: (slug: string) => void;
+  refreshRepoSkills: () => Promise<void>;
   streaming: boolean;
   hydrated: boolean;
   createChat: () => string;
@@ -89,6 +96,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<Persisted>(defaults);
   const [streaming, setStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [repoSkills, setRepoSkills] = useState<RepoSkill[]>([]);
   const stateRef = useRef(state);
   const abortRef = useRef(false);
 
@@ -115,6 +123,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       /* storage full or blocked */
     }
   }, [state, hydrated]);
+
+  const refreshRepoSkills = useCallback(async () => {
+    try {
+      const res = await fetch("/api/skills");
+      const data = (await res.json()) as { skills?: RepoSkill[] };
+      setRepoSkills(data.skills ?? []);
+    } catch {
+      /* leave the list as it was */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRepoSkills();
+  }, [refreshRepoSkills]);
+
+  const toggleRepoSkill = useCallback((slug: string) => {
+    setState((s) => ({
+      ...s,
+      enabledRepoSkills: s.enabledRepoSkills.includes(slug)
+        ? s.enabledRepoSkills.filter((item) => item !== slug)
+        : [...s.enabledRepoSkills, slug],
+    }));
+  }, []);
 
   const patchMessage = useCallback((chatId: string, msgId: string, patch: Partial<Message>) => {
     setState((s) => ({
@@ -164,6 +195,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({
       ...defaults(),
       skills: s.skills,
+      enabledRepoSkills: s.enabledRepoSkills,
       servers: s.servers,
       harness: s.harness,
       settings: s.settings,
@@ -183,6 +215,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       attachments: messages
         .flatMap((m) => m.attachments ?? [])
         .map((a) => ({ name: a.name, type: a.type, size: a.size })),
+      repoSkills: s.enabledRepoSkills,
       skills: s.skills
         .filter((k) => k.enabled)
         .map((k) => (k.description ? `${k.name} — ${k.description}` : k.name)),
@@ -210,6 +243,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       let acc = "";
       let think = "";
+      const calls: ToolCall[] = [];
+      const notices: string[] = [];
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -242,38 +277,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          const currentCalls = () =>
-            stateRef.current.chats.find((c) => c.id === chatId)?.messages.find((m) => m.id === botId)
-              ?.toolCalls ?? [];
-          const currentNotices = () =>
-            stateRef.current.chats.find((c) => c.id === chatId)?.messages.find((m) => m.id === botId)
-              ?.notices ?? [];
-
           switch (event.type) {
             case "tool_call": {
               const call = event as unknown as { id: string; server: string; name: string; args: unknown };
-              patchMessage(chatId, botId, {
-                toolCalls: [
-                  ...currentCalls(),
-                  { id: call.id, server: call.server, name: call.name, args: call.args, pending: true },
-                ],
-              });
+              calls.push({ id: call.id, server: call.server, name: call.name, args: call.args, pending: true });
+              patchMessage(chatId, botId, { toolCalls: [...calls] });
               return;
             }
             case "tool_result": {
               const result = event as unknown as { id: string; ok: boolean; content: string; error?: string };
-              patchMessage(chatId, botId, {
-                toolCalls: currentCalls().map((call) =>
-                  call.id === result.id
-                    ? { ...call, ok: result.ok, content: result.content, error: result.error, pending: false }
-                    : call,
-                ),
-              });
+              const index = calls.findIndex((call) => call.id === result.id);
+              if (index >= 0) {
+                calls[index] = {
+                  ...calls[index],
+                  ok: result.ok,
+                  content: result.content,
+                  error: result.error,
+                  pending: false,
+                };
+                patchMessage(chatId, botId, { toolCalls: [...calls] });
+              }
               return;
             }
             case "notice": {
               const notice = (event as unknown as { text: string }).text;
-              if (notice) patchMessage(chatId, botId, { notices: [...currentNotices(), notice] });
+              if (notice) {
+                notices.push(notice);
+                patchMessage(chatId, botId, { notices: [...notices] });
+              }
               return;
             }
             default:
@@ -596,6 +627,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       activeChat,
+      repoSkills,
+      toggleRepoSkill,
+      refreshRepoSkills,
       streaming,
       hydrated,
       createChat,
@@ -621,6 +655,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [
       state,
       activeChat,
+      repoSkills,
+      toggleRepoSkill,
+      refreshRepoSkills,
       streaming,
       hydrated,
       createChat,

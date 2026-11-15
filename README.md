@@ -13,7 +13,7 @@ Live: https://anuv1.vercel.app/
 - **Landing** — a serif hero on a near-black violet canvas; the purple glow follows your cursor and text shifts to violet on hover.
 - **Chat history** — grouped by Today / Previous 7 days / Older, searchable, rename inline, delete, persisted in `localStorage`. `⌘K` / `Ctrl+K` starts a new chat.
 - **File attachments** — paperclip picker and drag-and-drop onto the composer, up to 8 files, chips with size/type, removable before sending. File metadata is sent with the request; the files themselves never leave the browser.
-- **Skills** — instruction packs you add yourself; enabled skills are sent with each request and shown in the header. Nothing is pre-installed.
+- **Skills (SKILL.md)** — real skill folders under `skills/<name>/`, with YAML frontmatter and supporting files. The model sees only each skill's name and description, then calls `load_skill` / `read_skill_file` when one applies — progressive disclosure, so long instructions cost nothing until used. Quick one-line rules can still be added inline.
 - **MCP connectors, for real** — connect Model Context Protocol servers over `stdio`, `http` or `sse`. The server lists each server's tools at request time, hands them to the model as Gemini function declarations, runs whatever the model calls, feeds the results back and loops until the task is done. Every call appears in the transcript as a card with its arguments and output.
 - **Harness bridge** — endpoint, bearer token, agent mode, auto-approve tools, max steps per turn and a subagent list, all forwarded with the request.
 - **Config** — model picker, temperature, system prompt, clear-all-chats.
@@ -31,6 +31,36 @@ npm run dev                  # http://localhost:3000
 npm run build && npm start   # production
 npm run typecheck            # tsc --noEmit
 ```
+
+## Skills
+
+A skill is a folder under `skills/` with a `SKILL.md`:
+
+```
+skills/analysis-validation/
+  SKILL.md                 frontmatter + instructions
+  references/checklist.md  supporting file, read on demand
+```
+
+```markdown
+---
+name: analysis-validation
+description: Critique the analysis before presenting. Load before the final answer on any RCA or KPI claim.
+---
+
+# Analysis validation
+...
+```
+
+Only `name` and `description` are put in front of the model. The full body is fetched with
+`load_skill`, and `references/…` files with `read_skill_file`, so the prompt stays small until a skill
+is actually needed. Toggle skills in the **Skills** tab; the enabled ones are the only ones exposed for
+that chat. The tab also has *Rescan skills folder* after you add files.
+
+`skills/analysis-validation` ships as a working example.
+
+Inline instructions (name + one line) still exist for throwaway rules — they go into the system prompt
+on every turn, so keep them short.
 
 ## Tools (MCP)
 
@@ -115,6 +145,7 @@ app/
   globals.css         theme tokens, grid/glow background, scrollbars
   api/chat/route.ts   POST endpoint: tool loop + streamed events
   api/mcp/route.ts    POST: connect to one MCP server and list its tools
+  api/skills/route.ts GET: list the skills bundled in skills/
 components/
   ChatApp.tsx         layout shell, drawers, keyboard shortcuts
   Sidebar.tsx         history, search, footer stats
@@ -125,6 +156,7 @@ components/
   ui.tsx, Icons.tsx   primitives and icon set
 lib/
   mcp.ts              MCP client pool: connect, listTools, callTool
+  skills.ts           SKILL.md discovery, load_skill / read_skill_file tools
   types.ts            domain types, model list
   store.tsx           state, persistence, streaming, regenerate
   providers/gemini.ts provider adapter (SSE streaming)

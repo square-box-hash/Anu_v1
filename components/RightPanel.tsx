@@ -40,6 +40,7 @@ function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const enabledCount = store.repoSkills.filter((skill) => store.enabledRepoSkills.includes(skill.slug)).length;
 
   return (
     <div className="space-y-4">
@@ -47,19 +48,99 @@ function SkillsTab() {
         <SectionTitle
           right={
             <span className="font-mono text-[10px] text-faint">
+              {enabledCount}/{store.repoSkills.length}
+            </span>
+          }
+        >
+          Workspace skills
+        </SectionTitle>
+        <p className="mt-1 text-[11px] leading-relaxed text-faint">
+          Read from <code className="font-mono text-accent-pale">skills/&lt;name&gt;/SKILL.md</code>. The model sees only
+          the name and description, then calls <code className="font-mono text-accent-pale">load_skill</code> when one
+          applies — so the full text costs nothing until it is used.
+        </p>
+      </div>
+
+      {store.repoSkills.length === 0 ? (
+        <Empty>
+          No SKILL.md files found. Add a folder under <code className="font-mono text-accent-pale">skills/</code> with a{" "}
+          <code className="font-mono text-accent-pale">name</code> and{" "}
+          <code className="font-mono text-accent-pale">description</code> in its frontmatter, then redeploy.
+        </Empty>
+      ) : (
+        <div className="space-y-1.5">
+          {store.repoSkills.map((skill) => {
+            const enabled = store.enabledRepoSkills.includes(skill.slug);
+            return (
+              <div
+                key={skill.slug}
+                className={cx(
+                  "rounded-xl border p-2.5 transition-colors",
+                  enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate font-mono text-[11.5px] text-ink">{skill.name}</span>
+                      {skill.files.length ? (
+                        <span className="shrink-0 font-mono text-[9px] text-faint">{skill.files.length} files</span>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 line-clamp-3 text-[11px] leading-relaxed text-faint">{skill.description}</p>
+                    {skill.files.length ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {skill.files.slice(0, 4).map((file) => (
+                          <span
+                            key={file}
+                            className="rounded border border-line bg-black/25 px-1.5 py-[1px] font-mono text-[9px] text-muted"
+                          >
+                            {file}
+                          </span>
+                        ))}
+                        {skill.files.length > 4 ? (
+                          <span className="font-mono text-[9px] text-faint">+{skill.files.length - 4}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <Toggle
+                    checked={enabled}
+                    onChange={() => store.toggleRepoSkill(skill.slug)}
+                    label={skill.name}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        onClick={() => void store.refreshRepoSkills()}
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-line py-1.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-accent-pale"
+      >
+        <Refresh className="h-3 w-3" />
+        Rescan skills folder
+      </button>
+
+      <div className="border-t border-line pt-3">
+        <SectionTitle
+          right={
+            <span className="font-mono text-[10px] text-faint">
               {store.skills.filter((s) => s.enabled).length}/{store.skills.length}
             </span>
           }
         >
-          Installed
+          Inline instructions
         </SectionTitle>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Skills are instruction packs sent with every turn. Nothing is installed by default.
+          Quick rules typed here go into the system prompt on every turn. For anything long, use a SKILL.md instead.
         </p>
       </div>
 
       {store.skills.length === 0 ? (
-        <Empty>No skills yet. Add one below and it travels with your next message.</Empty>
+        <Empty>Nothing inline yet.</Empty>
       ) : (
         <div className="space-y-1.5">
           {store.skills.map((skill) => (
@@ -94,9 +175,9 @@ function SkillsTab() {
       )}
 
       <div className="rounded-xl border border-line bg-black/25 p-2.5">
-        <SectionTitle>Add a skill</SectionTitle>
+        <SectionTitle>Add inline instruction</SectionTitle>
         <div className="mt-2 space-y-1.5">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Skill name" className={inputClass} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className={inputClass} />
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
@@ -112,7 +193,7 @@ function SkillsTab() {
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
           >
             <Plus className="h-3 w-3" />
-            Install skill
+            Add instruction
           </button>
         </div>
       </div>

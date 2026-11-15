@@ -74,6 +74,13 @@ export interface HarnessConfig {
   subagents: string[];
 }
 
+export interface RepoSkill {
+  slug: string;
+  name: string;
+  description: string;
+  files: string[];
+}
+
 export interface Settings {
   model: string;
   temperature: number;
@@ -87,6 +94,8 @@ export interface ChatRequest {
   temperature?: number;
   attachments?: { name: string; type: string; size: number }[];
   skills?: string[];
+  /** Slugs of workspace skills the user has enabled. */
+  repoSkills?: string[];
   mcpServers?: {
     id: string;
     name: string;
