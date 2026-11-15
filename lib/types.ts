@@ -14,7 +14,7 @@ export interface Message {
   attachments?: Attachment[];
   createdAt: number;
   pending?: boolean;
-  demo?: boolean;
+  error?: boolean;
 }
 
 export interface Chat {
@@ -30,7 +30,6 @@ export interface Skill {
   name: string;
   description: string;
   enabled: boolean;
-  builtin: boolean;
 }
 
 export type McpTransport = "stdio" | "http" | "sse";
@@ -43,7 +42,6 @@ export interface McpServer {
   target: string;
   enabled: boolean;
   status: McpStatus;
-  tools: number;
 }
 
 export interface HarnessConfig {
@@ -70,27 +68,30 @@ export interface ChatRequest {
   temperature?: number;
   attachments?: { name: string; type: string; size: number }[];
   skills?: string[];
-  mcpServers?: { name: string; transport: McpTransport; tools: number }[];
+  mcpServers?: { name: string; transport: McpTransport }[];
   harness?: { enabled: boolean; agentMode: boolean; maxSteps: number };
 }
 
-export const MODELS = [
-  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro", hint: "Deep reasoning" },
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", hint: "Fast, balanced" },
-  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", hint: "Cheapest" },
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", hint: "Legacy fast" },
-] as const;
+/** The model this workspace ships with. */
+export const DEFAULT_MODEL = "gemini-4-hydrogen";
 
-export const BUILTIN_SKILLS: Omit<Skill, "enabled">[] = [
-  { id: "web-research", name: "Web Research", description: "Search, read and cite sources before answering.", builtin: true },
-  { id: "code-review", name: "Code Review", description: "Review diffs for bugs, security and style issues.", builtin: true },
-  { id: "data-analysis", name: "Data Analysis", description: "Profile tables, run calculations, explain results.", builtin: true },
-  { id: "doc-writer", name: "Doc Writer", description: "Draft specs, READMEs and release notes in your voice.", builtin: true },
-  { id: "design-critic", name: "Design Critic", description: "Critique UI screenshots against layout and contrast rules.", builtin: true },
-];
+function toLabel(id: string): string {
+  return id
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
-export const DEMO_SERVERS: McpServer[] = [
-  { id: "mcp-filesystem", name: "filesystem", transport: "stdio", target: "npx -y @modelcontextprotocol/server-filesystem ~/work", enabled: true, status: "connected", tools: 11 },
-  { id: "mcp-github", name: "github", transport: "http", target: "https://api.githubcopilot.com/mcp/", enabled: false, status: "disconnected", tools: 26 },
-  { id: "mcp-postgres", name: "postgres", transport: "stdio", target: "npx -y @modelcontextprotocol/server-postgres", enabled: false, status: "disconnected", tools: 4 },
-];
+/**
+ * Model list. Add ids by setting NEXT_PUBLIC_GEMINI_MODELS to a comma
+ * separated list at build time, e.g. "gemini-4-hydrogen,gemini-4-hydrogen-pro".
+ */
+const configured = (process.env.NEXT_PUBLIC_GEMINI_MODELS ?? "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+export const MODELS: { id: string; label: string; hint: string }[] = (
+  configured.length ? configured : [DEFAULT_MODEL]
+).map((id, index) => ({ id, label: toLabel(id), hint: index === 0 ? "default" : "" }));

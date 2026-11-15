@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import type { Message as Msg } from "@/lib/types";
 import { cx, formatBytes } from "@/lib/utils";
-import { Bot, Check, Copy, File, Image as ImageIcon } from "./Icons";
+import { Check, Copy, File, Image as ImageIcon, Refresh } from "./Icons";
 
 function Inline({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*)/g);
@@ -79,8 +79,8 @@ function Blocks({ content }: { content: string }) {
       out.push(
         <ul key={`ul-${key++}`} className="my-2 space-y-1.5 pl-1">
           {list.map((item, i) => (
-            <li key={i} className="flex gap-2 text-[14px] leading-relaxed text-ink/90">
-              <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-accent-soft/70" />
+            <li key={i} className="flex gap-2 text-[14.5px] leading-[1.72] text-ink/90">
+              <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-accent-soft/70" />
               <span>
                 <Inline text={item} />
               </span>
@@ -111,7 +111,7 @@ function Blocks({ content }: { content: string }) {
         continue;
       }
       out.push(
-        <p key={`p-${key++}`} className="my-1.5 text-[14px] leading-[1.72] text-ink/90">
+        <p key={`p-${key++}`} className="my-1.5 text-[14.5px] leading-[1.72] text-ink/90">
           <Inline text={line} />
         </p>,
       );
@@ -129,7 +129,13 @@ function Blocks({ content }: { content: string }) {
   return <div className="min-w-0">{out}</div>;
 }
 
-export default function Message({ message }: { message: Msg }) {
+export default function Message({
+  message,
+  onRegenerate,
+}: {
+  message: Msg;
+  onRegenerate?: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
 
@@ -145,8 +151,8 @@ export default function Message({ message }: { message: Msg }) {
 
   if (isUser) {
     return (
-      <div className="group flex animate-rise justify-end gap-3">
-        <div className="max-w-[min(680px,86%)]">
+      <div className="flex animate-rise justify-end">
+        <div className="max-w-[min(660px,88%)]">
           {message.attachments?.length ? (
             <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
               {message.attachments.map((a) => (
@@ -161,56 +167,54 @@ export default function Message({ message }: { message: Msg }) {
               ))}
             </div>
           ) : null}
-          <div className="rounded-2xl rounded-br-md border border-accent/25 bg-accent/[0.13] px-4 py-2.5 text-[14px] leading-relaxed text-ink whitespace-pre-wrap">
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.07] px-4 py-2.5 text-[14.5px] leading-[1.65] text-ink whitespace-pre-wrap">
             {message.content}
           </div>
-        </div>
-        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-white/[0.04] text-[11px] font-semibold text-accent-pale">
-          GM
         </div>
       </div>
     );
   }
 
   return (
-    <div className="group flex animate-rise gap-3">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-accent/40 bg-accent/15 text-accent-pale">
-        <Bot className="h-3.5 w-3.5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="text-[12px] font-semibold text-ink">Nebula</span>
-          {message.demo ? (
-            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-1.5 py-[1px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-amber-200/90">
-              demo
-            </span>
-          ) : null}
+    <div className="group animate-rise">
+      {message.pending && !message.content ? (
+        <div className="flex items-center gap-1.5 py-2">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-soft/80"
+              style={{ animationDelay: `${i * 120}ms` }}
+            />
+          ))}
         </div>
-        {message.pending && !message.content ? (
-          <div className="flex items-center gap-1.5 py-2">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-soft/80"
-                style={{ animationDelay: `${i * 120}ms` }}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className={cx(message.pending && "caret")}>
-            <Blocks content={message.content} />
-          </div>
-        )}
-        {!message.pending && message.content ? (
+      ) : (
+        <div className={cx(message.pending && "caret")}>
+          <Blocks content={message.content} />
+        </div>
+      )}
+
+      {!message.pending && message.content ? (
+        <div className="mt-1.5 flex items-center gap-0.5">
           <button
             onClick={copy}
-            className="mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-faint opacity-0 transition-opacity hover:bg-white/5 hover:text-ink group-hover:opacity-100"
+            className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+            title={copied ? "Copied" : "Copy"}
+            aria-label="Copy message"
           >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copied ? "Copied" : "Copy"}
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
-        ) : null}
-      </div>
+          {onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+              title="Regenerate"
+              aria-label="Regenerate response"
+            >
+              <Refresh className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { buildDemoReply } from "@/lib/demo";
-import { generate, isConfigured } from "@/lib/providers/gemini";
+import { generateStream } from "@/lib/providers/gemini";
 import type { ChatRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   let body: ChatRequest;
@@ -17,21 +17,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "messages[] is required" }, { status: 400 });
   }
 
-  // Demo mode: no credentials, or explicitly forced with NEBULA_DEMO=1.
-  const demo = process.env.NEBULA_DEMO === "1" || !isConfigured();
-
-  if (demo) {
-    return NextResponse.json({ text: buildDemoReply(body), model: body.model, demo: true });
-  }
-
-  try {
-    const result = await generate(body);
-    return NextResponse.json({ ...result, demo: false });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown provider error";
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { text: `Provider error — falling back to demo output.\n\n\`\`\`\n${message}\n\`\`\`\n\n${buildDemoReply(body)}`, model: body.model, demo: true },
-      { status: 200 },
+      { error: "GEMINI_API_KEY is not set on the server. Add it to .env.local (or your Vercel env vars) and redeploy." },
+      { status: 500 },
     );
   }
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const delta of generateStream(body)) {
+          controller.enqueue(encoder.encode(delta));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown provider error";
+        controller.enqueue(encoder.encode(`\n\n**Request failed.** ${message}`));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }

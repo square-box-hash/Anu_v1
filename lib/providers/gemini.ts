@@ -1,70 +1,74 @@
+import { DEFAULT_MODEL } from "../types";
 import type { ChatRequest } from "../types";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-export interface ProviderResult {
-  text: string;
-  model: string;
-  usage?: { promptTokens?: number; candidateTokens?: number };
+function buildBody(req: ChatRequest) {
+  return {
+    contents: req.messages.map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.content }],
+    })),
+    systemInstruction: req.systemPrompt
+      ? { parts: [{ text: req.systemPrompt }] }
+      : undefined,
+    generationConfig: { temperature: req.temperature ?? 0.7 },
+  };
 }
 
 /**
- * Google Gemini adapter.
- *
- * This file is the single place the network call lives. It is intentionally
- * left un-wired for now: the UI must run with zero credentials. Fill in the
- * body below (or keep this implementation) and the chat route will start
- * returning real completions.
+ * Streams text deltas from Gemini's SSE endpoint.
+ * Model resolution: request model -> GEMINI_MODEL env -> DEFAULT_MODEL.
  */
-export async function generate(req: ChatRequest): Promise<ProviderResult> {
+export async function* generateStream(req: ChatRequest): AsyncGenerator<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not set on the server.");
 
-  const model = req.model || process.env.GEMINI_MODEL || "gemini-2.5-pro";
+  const model = req.model || process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  const contents = req.messages.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-
-  const res = await fetch(`${BASE}/${model}:generateContent`, {
+  const res = await fetch(`${BASE}/${model}:streamGenerateContent?alt=sse`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-goog-api-key": apiKey,
     },
-    body: JSON.stringify({
-      contents,
-      systemInstruction: req.systemPrompt
-        ? { parts: [{ text: req.systemPrompt }] }
-        : undefined,
-      generationConfig: { temperature: req.temperature ?? 0.7 },
-    }),
+    body: JSON.stringify(buildBody(req)),
   });
 
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`Gemini ${res.status}: ${detail.slice(0, 400)}`);
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `Gemini ${res.status} ${res.statusText}${detail ? ` — ${detail.slice(0, 400)}` : ""}`,
+    );
   }
 
-  const data = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-  };
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
 
-  const text =
-    data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
 
-  return {
-    text,
-    model,
-    usage: {
-      promptTokens: data.usageMetadata?.promptTokenCount,
-      candidateTokens: data.usageMetadata?.candidatesTokenCount,
-    },
-  };
-}
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
 
-export function isConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const json = JSON.parse(payload) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[];
+        };
+        const text =
+          json.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+        if (text) yield text;
+      } catch {
+        /* incomplete frame — wait for the rest */
+      }
+    }
+  }
 }

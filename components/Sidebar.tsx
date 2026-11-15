@@ -41,7 +41,7 @@ export default function Sidebar({
             <span className="h-2 w-2 rounded-full bg-accent-pale shadow-[0_0_12px_2px_rgba(167,139,250,0.7)]" />
           </div>
           <div className="leading-none">
-            <div className="text-[13.5px] font-semibold tracking-tight text-ink">Nebula</div>
+            <div className="text-[13.5px] font-semibold tracking-tight text-ink">Anu</div>
             <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.18em] text-faint">chat workspace</div>
           </div>
         </div>

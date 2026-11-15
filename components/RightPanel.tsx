@@ -8,7 +8,6 @@ import { cx } from "@/lib/utils";
 import {
   Bolt,
   Check,
-  Globe,
   Layers,
   Link,
   Plus,
@@ -29,6 +28,14 @@ const TABS: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
   { id: "settings", label: "Config", icon: <SettingsIcon className="h-3.5 w-3.5" /> },
 ];
 
+function Empty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-[11.5px] leading-relaxed text-faint">
+      {children}
+    </p>
+  );
+}
+
 function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
@@ -37,37 +44,40 @@ function SkillsTab() {
   return (
     <div className="space-y-4">
       <div>
-        <SectionTitle right={<span className="font-mono text-[10px] text-faint">{store.skills.filter((s) => s.enabled).length}/{store.skills.length}</span>}>
+        <SectionTitle
+          right={
+            <span className="font-mono text-[10px] text-faint">
+              {store.skills.filter((s) => s.enabled).length}/{store.skills.length}
+            </span>
+          }
+        >
           Installed
         </SectionTitle>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Skills are instruction packs injected on demand. Toggling one changes what the model is told it can do.
+          Skills are instruction packs sent with every turn. Nothing is installed by default.
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        {store.skills.map((skill) => (
-          <div
-            key={skill.id}
-            className={cx(
-              "rounded-xl border p-2.5 transition-colors",
-              skill.enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
-            )}
-          >
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
+      {store.skills.length === 0 ? (
+        <Empty>No skills yet. Add one below and it travels with your next message.</Empty>
+      ) : (
+        <div className="space-y-1.5">
+          {store.skills.map((skill) => (
+            <div
+              key={skill.id}
+              className={cx(
+                "rounded-xl border p-2.5 transition-colors",
+                skill.enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
                   <span className="truncate text-[12.5px] font-medium text-ink">{skill.name}</span>
-                  {!skill.builtin && (
-                    <span className="rounded border border-line px-1 font-mono text-[8.5px] uppercase tracking-wider text-faint">
-                      custom
-                    </span>
-                  )}
+                  {skill.description ? (
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-faint">{skill.description}</p>
+                  ) : null}
                 </div>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-faint">{skill.description}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                {!skill.builtin && (
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     onClick={() => store.removeSkill(skill.id)}
                     className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
@@ -75,13 +85,13 @@ function SkillsTab() {
                   >
                     <Trash className="h-3 w-3" />
                   </button>
-                )}
-                <Toggle checked={skill.enabled} onChange={() => store.toggleSkill(skill.id)} label={skill.name} />
+                  <Toggle checked={skill.enabled} onChange={() => store.toggleSkill(skill.id)} label={skill.name} />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-xl border border-line bg-black/25 p-2.5">
         <SectionTitle>Add a skill</SectionTitle>
@@ -119,47 +129,56 @@ function ConnectorsTab() {
   return (
     <div className="space-y-4">
       <div>
-        <SectionTitle right={<span className="font-mono text-[10px] text-faint">{store.servers.filter((s) => s.enabled).length} live</span>}>
+        <SectionTitle
+          right={
+            <span className="font-mono text-[10px] text-faint">
+              {store.servers.filter((s) => s.enabled).length} live
+            </span>
+          }
+        >
           MCP servers
         </SectionTitle>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Model Context Protocol connectors expose tools (files, databases, APIs) to the model for the current chat.
+          Model Context Protocol connectors expose tools to the model. None are connected by default.
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        {store.servers.map((server) => (
-          <div key={server.id} className="rounded-xl border border-line bg-white/[0.02] p-2.5">
-            <div className="flex items-start gap-2">
-              <div className="mt-1">
-                <StatusDot status={server.enabled ? server.status : "disconnected"} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate font-mono text-[12px] text-ink">{server.name}</span>
-                  <span className="rounded border border-line bg-black/30 px-1 font-mono text-[8.5px] uppercase tracking-wider text-muted">
-                    {server.transport}
-                  </span>
-                  <span className="ml-auto shrink-0 font-mono text-[9.5px] text-faint">{server.tools} tools</span>
+      {store.servers.length === 0 ? (
+        <Empty>No servers connected. Add a stdio command or an HTTP endpoint below.</Empty>
+      ) : (
+        <div className="space-y-1.5">
+          {store.servers.map((server) => (
+            <div key={server.id} className="rounded-xl border border-line bg-white/[0.02] p-2.5">
+              <div className="flex items-start gap-2">
+                <div className="mt-1">
+                  <StatusDot status={server.enabled ? server.status : "disconnected"} />
                 </div>
-                <p className="mt-1 truncate font-mono text-[10px] text-faint" title={server.target}>
-                  {server.target}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  onClick={() => store.removeServer(server.id)}
-                  className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
-                  aria-label={`Remove ${server.name}`}
-                >
-                  <Trash className="h-3 w-3" />
-                </button>
-                <Toggle checked={server.enabled} onChange={() => store.toggleServer(server.id)} label={server.name} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate font-mono text-[12px] text-ink">{server.name}</span>
+                    <span className="rounded border border-line bg-black/30 px-1 font-mono text-[8.5px] uppercase tracking-wider text-muted">
+                      {server.transport}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate font-mono text-[10px] text-faint" title={server.target}>
+                    {server.target}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => store.removeServer(server.id)}
+                    className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
+                    aria-label={`Remove ${server.name}`}
+                  >
+                    <Trash className="h-3 w-3" />
+                  </button>
+                  <Toggle checked={server.enabled} onChange={() => store.toggleServer(server.id)} label={server.name} />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-xl border border-line bg-black/25 p-2.5">
         <SectionTitle>Connect a server</SectionTitle>
@@ -207,10 +226,12 @@ function HarnessTab() {
   return (
     <div className="space-y-4">
       <div>
-        <SectionTitle right={<StatusDot status={h.enabled ? h.status : "disconnected"} />}>Harness bridge</SectionTitle>
+        <SectionTitle right={<StatusDot status={h.enabled ? h.status : "disconnected"} />}>
+          Harness bridge
+        </SectionTitle>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Point Nebula at an agent harness (an OpenHarness-style endpoint) and every turn can run tools, spawn subagents
-          and stream a trace back into this chat.
+          Point Anu at an agent harness endpoint so a turn can run tools and spawn subagents. Configure your own — the
+          bridge sends its state with every request.
         </p>
       </div>
 
@@ -269,14 +290,25 @@ function HarnessTab() {
 
       <div>
         <SectionTitle>Subagents</SectionTitle>
+        {h.subagents.length === 0 ? (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
+            None registered. Add the agent names your harness exposes.
+          </p>
+        ) : null}
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {h.subagents.map((s) => (
             <span
               key={s}
               className="inline-flex items-center gap-1 rounded-full border border-line bg-white/[0.03] px-2 py-[3px] font-mono text-[10px] text-muted"
             >
-              <Globe className="h-2.5 w-2.5 text-accent-soft" />
               {s}
+              <button
+                onClick={() => store.updateHarness({ subagents: h.subagents.filter((x) => x !== s) })}
+                className="text-faint hover:text-rose-300"
+                aria-label={`Remove ${s}`}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
             </span>
           ))}
           <button
@@ -292,23 +324,21 @@ function HarnessTab() {
         onClick={store.testHarness}
         className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-2 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
       >
-        {h.status === "connected" ? <Check className="h-3.5 w-3.5" /> : <Refresh className={cx("h-3.5 w-3.5", h.status === "connecting" && "animate-spin")} />}
-        {h.status === "connecting" ? "Handshaking…" : h.status === "connected" ? "Connected — test again" : "Test connection"}
+        {h.status === "connected" ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : (
+          <Refresh className={cx("h-3.5 w-3.5", h.status === "connecting" && "animate-spin")} />
+        )}
+        {h.status === "connecting" ? "Checking…" : h.status === "connected" ? "Marked reachable — check again" : "Check endpoint"}
       </button>
-
-      <div className="rounded-xl border border-line bg-black/25 p-2.5 font-mono text-[10px] leading-relaxed text-faint">
-        <div className="text-accent-soft">› trace</div>
-        <div>tool.read_file({"{"} path: "src/app.tsx" {"}"})</div>
-        <div>tool.grep({"{"} q: "TODO" {"}"}) → 4 hits</div>
-        <div>subagent.planner → ok</div>
-        <div className="text-faint/60">// placeholder — no network calls yet</div>
-      </div>
     </div>
   );
 }
 
 function SettingsTab() {
   const store = useStore();
+  const active = MODELS.find((m) => m.id === store.settings.model) ?? MODELS[0];
+
   return (
     <div className="space-y-4">
       <div>
@@ -359,22 +389,22 @@ function SettingsTab() {
       <div className="rounded-xl border border-line bg-black/25 p-2.5">
         <SectionTitle>Connection</SectionTitle>
         <div className="mt-2 space-y-1.5 font-mono text-[10.5px]">
-          <div className="flex items-center justify-between">
-            <span className="text-faint">GEMINI_API_KEY</span>
-            <span className="text-amber-200/80">not set</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-faint">mode</span>
-            <span className="text-accent-pale">demo</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-faint">model</span>
+            <span className="truncate text-accent-pale">{active.id}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-faint">route</span>
             <span className="text-muted">/api/chat</span>
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-faint">transport</span>
+            <span className="text-muted">streamed</span>
+          </div>
         </div>
         <p className="mt-2 text-[10.5px] leading-relaxed text-faint">
-          Add the key to <code className="font-mono text-accent-pale">.env.local</code> and restart. The request shape is
-          already typed in <code className="font-mono text-accent-pale">lib/types.ts</code>.
+          The Gemini key is read server-side from <code className="font-mono text-accent-pale">GEMINI_API_KEY</code> and
+          never reaches the browser.
         </p>
       </div>
 
@@ -387,7 +417,7 @@ function SettingsTab() {
       </button>
 
       <p className="pb-2 text-center font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/60">
-        nebula · mit licensed
+        anu · mit licensed
       </p>
     </div>
   );

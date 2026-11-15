@@ -9,10 +9,11 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { BUILTIN_SKILLS, DEMO_SERVERS } from "./types";
+import { DEFAULT_MODEL } from "./types";
 import type {
   Attachment,
   Chat,
+  ChatRequest,
   HarnessConfig,
   McpServer,
   Message,
@@ -21,7 +22,7 @@ import type {
 } from "./types";
 import { titleFrom, uid } from "./utils";
 
-const STORAGE_KEY = "nebula.chat.v1";
+const STORAGE_KEY = "nebula.chat.v2";
 
 interface Persisted {
   chats: Chat[];
@@ -36,23 +37,23 @@ function defaults(): Persisted {
   return {
     chats: [],
     activeId: null,
-    skills: BUILTIN_SKILLS.map((s) => ({ ...s, enabled: s.id === "web-research" })),
-    servers: DEMO_SERVERS.map((s) => ({ ...s })),
+    skills: [],
+    servers: [],
     harness: {
       enabled: false,
-      endpoint: "http://localhost:8787/harness",
+      endpoint: "",
       apiKey: "",
       agentMode: true,
       autoApprove: false,
       maxSteps: 12,
       status: "idle",
-      subagents: ["planner", "researcher", "coder"],
+      subagents: [],
     },
     settings: {
-      model: "gemini-2.5-pro",
+      model: DEFAULT_MODEL,
       temperature: 0.7,
       systemPrompt:
-        "You are Nebula, a precise and friendly assistant. Ask a clarifying question when the request is ambiguous, otherwise answer directly.",
+        "You are a precise, friendly assistant. Ask a clarifying question when the request is ambiguous, otherwise answer directly.",
     },
   };
 }
@@ -67,11 +68,12 @@ interface StoreValue extends Persisted {
   renameChat: (id: string, title: string) => void;
   clearAll: () => void;
   send: (text: string, attachments?: Attachment[]) => Promise<void>;
+  regenerate: () => Promise<void>;
   stop: () => void;
   toggleSkill: (id: string) => void;
   addSkill: (name: string, description: string) => void;
   removeSkill: (id: string) => void;
-  addServer: (server: Omit<McpServer, "id" | "status" | "tools" | "enabled">) => void;
+  addServer: (server: Pick<McpServer, "name" | "transport" | "target">) => void;
   toggleServer: (id: string) => void;
   removeServer: (id: string) => void;
   updateHarness: (patch: Partial<HarnessConfig>) => void;
@@ -80,8 +82,6 @@ interface StoreValue extends Persisted {
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<Persisted>(defaults);
@@ -92,7 +92,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   stateRef.current = state;
 
-  // hydrate from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -106,7 +105,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setHydrated(true);
   }, []);
 
-  // persist
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -133,7 +131,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const createChat = useCallback(() => {
     const id = uid();
-    const chat: Chat = { id, title: "New chat", messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+    const chat: Chat = {
+      id,
+      title: "New chat",
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
     setState((s) => ({ ...s, chats: [chat, ...s.chats], activeId: id }));
     return id;
   }, []);
@@ -155,24 +159,97 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearAll = useCallback(() => {
-    setState((s) => ({ ...defaults(), skills: s.skills, servers: s.servers, harness: s.harness, settings: s.settings }));
+    setState((s) => ({
+      ...defaults(),
+      skills: s.skills,
+      servers: s.servers,
+      harness: s.harness,
+      settings: s.settings,
+    }));
   }, []);
 
-  const streamText = useCallback(
-    async (chatId: string, msgId: string, full: string) => {
-      const tokens = full.match(/\S+\s*/g) ?? [full];
+  const buildRequest = useCallback((messages: Message[]): ChatRequest => {
+    const s = stateRef.current;
+    return {
+      messages: messages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .slice(-24)
+        .map((m) => ({ role: m.role, content: m.content })),
+      model: s.settings.model,
+      systemPrompt: s.settings.systemPrompt,
+      temperature: s.settings.temperature,
+      attachments: messages
+        .flatMap((m) => m.attachments ?? [])
+        .map((a) => ({ name: a.name, type: a.type, size: a.size })),
+      skills: s.skills.filter((k) => k.enabled).map((k) => k.name),
+      mcpServers: s.servers
+        .filter((server) => server.enabled)
+        .map((server) => ({ name: server.name, transport: server.transport })),
+      harness: {
+        enabled: s.harness.enabled,
+        agentMode: s.harness.agentMode,
+        maxSteps: s.harness.maxSteps,
+      },
+    };
+  }, []);
+
+  const runTurn = useCallback(
+    async (chatId: string, botId: string, payload: ChatRequest) => {
+      abortRef.current = false;
+      setStreaming(true);
+
       let acc = "";
-      for (let i = 0; i < tokens.length; i++) {
-        if (abortRef.current) break;
-        acc += tokens[i];
-        patchMessage(chatId, msgId, { content: acc });
-        await sleep(i < 12 ? 22 : 11);
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok || !res.body) {
+          const detail = await res.text().catch(() => "");
+          let message = detail.trim();
+          try {
+            message = (JSON.parse(detail) as { error?: string }).error ?? message;
+          } catch {
+            /* plain text error */
+          }
+          throw new Error(message || `Request failed (${res.status})`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (abortRef.current) {
+            await reader.cancel();
+            break;
+          }
+          acc += decoder.decode(value, { stream: true });
+          patchMessage(chatId, botId, { content: acc });
+        }
+        acc += decoder.decode();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Something went wrong.";
+        patchMessage(chatId, botId, {
+          content: acc ? `${acc}\n\n**Request failed.** ${message}` : `**Request failed.** ${message}`,
+          pending: false,
+          error: true,
+        });
+        setStreaming(false);
+        return;
       }
+
       if (abortRef.current) {
-        patchMessage(chatId, msgId, { content: `${acc}\n\n_Stopped._`, pending: false });
+        patchMessage(chatId, botId, { content: `${acc}\n\n_Stopped._`, pending: false });
+      } else if (!acc.trim()) {
+        patchMessage(chatId, botId, { content: "_The model returned an empty response._", pending: false });
       } else {
-        patchMessage(chatId, msgId, { content: full, pending: false });
+        patchMessage(chatId, botId, { content: acc, pending: false });
       }
+      setStreaming(false);
     },
     [patchMessage],
   );
@@ -181,9 +258,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (text: string, attachments: Attachment[] = []) => {
       const trimmed = text.trim();
       if (!trimmed && attachments.length === 0) return;
-
-      abortRef.current = false;
-      setStreaming(true);
 
       const cur = stateRef.current;
       const chatId = cur.activeId ?? uid();
@@ -210,7 +284,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             c.id === chatId
               ? {
                   ...c,
-                  title: c.messages.length === 0 ? titleFrom(trimmed || attachments[0]?.name || "New chat") : c.title,
+                  title:
+                    c.messages.length === 0
+                      ? titleFrom(trimmed || attachments[0]?.name || "New chat")
+                      : c.title,
                   messages: [...c.messages, userMsg, botMsg],
                   updatedAt: now,
                 }
@@ -219,46 +296,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      const snapshot = stateRef.current;
-      const chat = snapshot.chats.find((c) => c.id === chatId);
-      const history = [...(chat?.messages ?? []), userMsg]
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .slice(-24)
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      let full = "";
-      try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: history,
-            model: snapshot.settings.model,
-            systemPrompt: snapshot.settings.systemPrompt,
-            temperature: snapshot.settings.temperature,
-            attachments: attachments.map((a) => ({ name: a.name, type: a.type, size: a.size })),
-            skills: snapshot.skills.filter((s) => s.enabled).map((s) => s.name),
-            mcpServers: snapshot.servers
-              .filter((s) => s.enabled)
-              .map((s) => ({ name: s.name, transport: s.transport, tools: s.tools })),
-            harness: {
-              enabled: snapshot.harness.enabled,
-              agentMode: snapshot.harness.agentMode,
-              maxSteps: snapshot.harness.maxSteps,
-            },
-          }),
-        });
-        const data = (await res.json()) as { text?: string; error?: string };
-        full = data.text ?? data.error ?? "No response from the chat route.";
-      } catch {
-        full = "I couldn't reach `/api/chat`. Start the app with `npm run dev` and try again.";
-      }
-
-      await streamText(chatId, botMsg.id, full);
-      setStreaming(false);
+      const chat = stateRef.current.chats.find((c) => c.id === chatId);
+      const history = [...(chat?.messages ?? []), userMsg];
+      await runTurn(chatId, botMsg.id, buildRequest(history));
     },
-    [streamText],
+    [buildRequest, runTurn],
   );
+
+  const regenerate = useCallback(async () => {
+    const cur = stateRef.current;
+    const chat = cur.chats.find((c) => c.id === cur.activeId);
+    if (!chat) return;
+
+    const roles = chat.messages.map((m) => m.role);
+    const lastUserIndex = roles.lastIndexOf("user");
+    if (lastUserIndex < 0) return;
+
+    const kept = chat.messages.slice(0, lastUserIndex + 1);
+    const botMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now(), pending: true };
+
+    setState((s) => ({
+      ...s,
+      chats: s.chats.map((c) =>
+        c.id === chat.id ? { ...c, messages: [...kept, botMsg], updatedAt: Date.now() } : c,
+      ),
+    }));
+
+    await runTurn(chat.id, botMsg.id, buildRequest(kept));
+  }, [buildRequest, runTurn]);
 
   const stop = useCallback(() => {
     abortRef.current = true;
@@ -266,7 +331,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleSkill = useCallback((id: string) => {
-    setState((s) => ({ ...s, skills: s.skills.map((k) => (k.id === id ? { ...k, enabled: !k.enabled } : k)) }));
+    setState((s) => ({
+      ...s,
+      skills: s.skills.map((k) => (k.id === id ? { ...k, enabled: !k.enabled } : k)),
+    }));
   }, []);
 
   const addSkill = useCallback((name: string, description: string) => {
@@ -275,7 +343,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...s,
       skills: [
         ...s.skills,
-        { id: uid(), name: name.trim(), description: description.trim() || "Custom skill", enabled: true, builtin: false },
+        { id: uid(), name: name.trim(), description: description.trim(), enabled: true },
       ],
     }));
   }, []);
@@ -284,19 +352,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, skills: s.skills.filter((k) => k.id !== id) }));
   }, []);
 
-  const addServer = useCallback((server: Omit<McpServer, "id" | "status" | "tools" | "enabled">) => {
+  const addServer = useCallback((server: Pick<McpServer, "name" | "transport" | "target">) => {
     if (!server.name.trim() || !server.target.trim()) return;
     setState((s) => ({
       ...s,
       servers: [
         ...s.servers,
-        {
-          ...server,
-          id: uid(),
-          enabled: true,
-          status: "connected",
-          tools: 3 + Math.floor(Math.random() * 18),
-        },
+        { ...server, id: uid(), enabled: true, status: "connected" as const },
       ],
     }));
   }, []);
@@ -306,11 +368,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...s,
       servers: s.servers.map((srv) =>
         srv.id === id
-          ? {
-              ...srv,
-              enabled: !srv.enabled,
-              status: !srv.enabled ? "connected" : "disconnected",
-            }
+          ? { ...srv, enabled: !srv.enabled, status: !srv.enabled ? "connected" : "disconnected" }
           : srv,
       ),
     }));
@@ -350,6 +408,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameChat,
       clearAll,
       send,
+      regenerate,
       stop,
       toggleSkill,
       addSkill,
@@ -372,6 +431,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameChat,
       clearAll,
       send,
+      regenerate,
       stop,
       toggleSkill,
       addSkill,

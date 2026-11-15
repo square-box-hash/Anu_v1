@@ -6,7 +6,7 @@ import { MODELS } from "@/lib/types";
 import { cx } from "@/lib/utils";
 import Message from "./Message";
 import Composer from "./Composer";
-import { Bolt, Chevron, Layers, Menu, PanelRight, Plus, Sparkles, Terminal } from "./Icons";
+import { Bolt, Chevron, Layers, Menu, PanelRight, Sparkles, Terminal } from "./Icons";
 import { Pill, StatusDot } from "./ui";
 
 const SUGGESTIONS = [
@@ -33,6 +33,7 @@ export default function ChatView({
   const messages = store.activeChat?.messages ?? [];
   const lastContent = messages[messages.length - 1]?.content ?? "";
   const model = MODELS.find((m) => m.id === store.settings.model) ?? MODELS[0];
+  const activeSkills = store.skills.filter((s) => s.enabled);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -40,8 +41,6 @@ export default function ChatView({
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 220;
     if (nearBottom) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages.length, lastContent]);
-
-  const activeSkills = store.skills.filter((s) => s.enabled);
 
   return (
     <main className="relative flex h-full min-w-0 flex-1 flex-col">
@@ -55,14 +54,9 @@ export default function ChatView({
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="truncate text-[13px] font-semibold text-ink">
-              {store.activeChat?.title ?? "New chat"}
-            </h1>
-            <span className="hidden rounded-full border border-amber-400/25 bg-amber-400/[0.08] px-1.5 py-[1px] font-mono text-[9px] uppercase tracking-[0.12em] text-amber-200/80 sm:inline">
-              demo
-            </span>
-          </div>
+          <h1 className="truncate text-[13px] font-semibold text-ink">
+            {store.activeChat?.title ?? "New chat"}
+          </h1>
           <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-faint">
             <span className="truncate">{model.label}</span>
             <span className="h-2.5 w-px bg-line" />
@@ -78,7 +72,10 @@ export default function ChatView({
             </Pill>
           ))}
           {activeSkills.length > 2 && <Pill>+{activeSkills.length - 2}</Pill>}
-          <Pill active={store.harness.enabled} onClick={() => store.updateHarness({ enabled: !store.harness.enabled })}>
+          <Pill
+            active={store.harness.enabled}
+            onClick={() => store.updateHarness({ enabled: !store.harness.enabled })}
+          >
             <StatusDot status={store.harness.enabled ? store.harness.status : "disconnected"} />
             harness
           </Pill>
@@ -89,7 +86,7 @@ export default function ChatView({
           className="hidden items-center gap-1.5 rounded-lg border border-line bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted transition-colors hover:border-linestrong hover:text-ink sm:flex"
         >
           <Sparkles className="h-3 w-3 text-accent-soft" />
-          Connect Gemini
+          Settings
         </button>
 
         <button
@@ -108,17 +105,12 @@ export default function ChatView({
         {messages.length === 0 ? (
           <div className="mx-auto flex min-h-full w-full max-w-[820px] flex-col justify-center px-5 py-10 sm:px-8">
             <div className="animate-rise">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.03] px-2.5 py-1 text-[10.5px] text-muted">
-                <StatusDot status="connected" />
-                UI ready · model not connected
-              </div>
               <h2 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[32px]">
                 Where should we start,
                 <span className="bg-gradient-to-r from-accent-soft to-fuchsia-300 bg-clip-text text-transparent"> Gourav?</span>
               </h2>
               <p className="mt-2 max-w-[520px] text-[13.5px] leading-relaxed text-muted">
-                Chat, attach files, arm skills, plug in MCP connectors and hand the turn to your harness. Everything is
-                wired except generation — add a Gemini key when you're ready.
+                Chat, attach files, arm skills, plug in MCP connectors and hand the turn to your harness.
               </p>
             </div>
 
@@ -142,15 +134,23 @@ export default function ChatView({
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-faint/70">
-              <span>{store.skills.filter((s) => s.enabled).length} skills armed</span>
+              <span>{activeSkills.length} skills armed</span>
               <span>{store.servers.filter((s) => s.enabled).length} mcp servers</span>
               <span>{store.chats.length} chats stored locally</span>
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[820px] space-y-6 px-4 py-6 sm:px-6">
+          <div className="mx-auto w-full max-w-[760px] space-y-7 px-4 py-6 sm:px-6">
             {messages.map((m) => (
-              <Message key={m.id} message={m} />
+              <Message
+                key={m.id}
+                message={m}
+                onRegenerate={
+                  m.role === "assistant" && m.id === messages[messages.length - 1]?.id && !store.streaming
+                    ? () => void store.regenerate()
+                    : undefined
+                }
+              />
             ))}
             <div ref={bottomRef} className="h-1" />
           </div>

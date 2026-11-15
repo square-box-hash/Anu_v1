@@ -111,7 +111,7 @@ export default function Composer() {
                 submit();
               }
             }}
-            placeholder={dragging ? "Drop files to attach…" : "Message Nebula — Shift + Enter for a new line"}
+            placeholder={dragging ? "Drop files to attach…" : "Message Anu — Shift + Enter for a new line"}
             className="max-h-[200px] w-full resize-none bg-transparent px-4 pt-3.5 text-[14px] leading-relaxed text-ink outline-none placeholder:text-faint/80"
           />
 
@@ -147,7 +147,7 @@ export default function Composer() {
               {menu && (
                 <div className="absolute bottom-full left-0 z-30 mb-2 w-[236px] animate-rise overflow-hidden rounded-xl border border-line bg-panel2 shadow-2xl shadow-black/60">
                   <div className="border-b border-line px-3 py-2 font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">
-                    Gemini models
+                    Model
                   </div>
                   {MODELS.map((m) => (
                     <button
@@ -216,7 +216,7 @@ export default function Composer() {
         </div>
 
         <p className="mt-2 text-center text-[10.5px] leading-relaxed text-faint/80">
-          Files stay in your browser — nothing is uploaded. Model output is stubbed until you add a Gemini key.
+          Anu can make mistakes — double-check important details.
         </p>
       </div>
     </div>

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nebula — AI Chat Workspace",
+  title: "Anu — AI Chat Workspace",
   description:
     "A purple-themed AI chat workspace: streaming chat, file attachments, skills, MCP connectors and a harness bridge. Built with Next.js and TypeScript.",
 };
