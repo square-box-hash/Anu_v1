@@ -11,10 +11,16 @@ import { cx } from "@/lib/utils";
 function Workspace() {
   const store = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [tab, setTab] = useState<PanelTab>("skills");
 
   const spotRef = useRef<HTMLDivElement>(null);
+
+  // The context panel is inline on wide screens and a drawer on small ones,
+  // so only open it by default when there is room for it.
+  useEffect(() => {
+    if (window.innerWidth >= 1280) setPanelOpen(true);
+  }, []);
 
   useEffect(() => {
     const el = spotRef.current;

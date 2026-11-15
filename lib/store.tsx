@@ -199,6 +199,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setStreaming(true);
 
       let acc = "";
+      let think = "";
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -219,6 +220,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = "";
+
+        const handleLine = (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          let event: { type?: string; text?: string };
+          try {
+            event = JSON.parse(trimmed) as { type?: string; text?: string };
+          } catch {
+            return;
+          }
+          const text = event.text ?? "";
+          if (!text) return;
+          if (event.type === "thought") {
+            think += text;
+            patchMessage(chatId, botId, { thinking: think, pending: true });
+          } else if (event.type === "text") {
+            acc += text;
+            patchMessage(chatId, botId, { content: acc });
+          } else if (event.type === "error") {
+            acc += `${acc ? "\n\n" : ""}**Request failed.** ${text}`;
+            patchMessage(chatId, botId, { content: acc });
+          }
+        };
 
         for (;;) {
           const { done, value } = await reader.read();
@@ -227,14 +252,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             await reader.cancel();
             break;
           }
-          acc += decoder.decode(value, { stream: true });
-          patchMessage(chatId, botId, { content: acc });
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) handleLine(line);
         }
-        acc += decoder.decode();
+        buffer += decoder.decode();
+        if (buffer.trim()) handleLine(buffer);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Something went wrong.";
         patchMessage(chatId, botId, {
           content: acc ? `${acc}\n\n**Request failed.** ${message}` : `**Request failed.** ${message}`,
+          thinking: think || undefined,
           pending: false,
           error: true,
         });
@@ -242,12 +271,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const thinking = think.trim() ? think : undefined;
       if (abortRef.current) {
-        patchMessage(chatId, botId, { content: `${acc}\n\n_Stopped._`, pending: false });
+        patchMessage(chatId, botId, { content: `${acc}\n\n_Stopped._`, thinking, pending: false });
       } else if (!acc.trim()) {
-        patchMessage(chatId, botId, { content: "_The model returned an empty response._", pending: false });
+        patchMessage(chatId, botId, { content: "_The model returned an empty response._", thinking, pending: false });
       } else {
-        patchMessage(chatId, botId, { content: acc, pending: false });
+        patchMessage(chatId, botId, { content: acc, thinking, pending: false });
       }
       setStreaming(false);
     },

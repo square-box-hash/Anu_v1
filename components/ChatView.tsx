@@ -107,16 +107,16 @@ export default function ChatView({
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center px-6 py-14 sm:px-10">
+          <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center px-5 py-10 sm:px-10 sm:py-14">
             <div className="animate-rise">
-              <Logo className="mb-7 h-14 w-14 drop-shadow-[0_0_22px_rgba(34,211,238,0.32)]" />
+              <Logo className="mb-5 h-12 w-12 drop-shadow-[0_0_22px_rgba(34,211,238,0.32)] sm:mb-7 sm:h-14 sm:w-14" />
 
               <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
                 <span className="h-1 w-1 rounded-full bg-accent-soft" />
                 {model.id}
               </div>
 
-              <h1 className="font-serif text-[40px] font-normal leading-[1.05] tracking-[-0.02em] text-ink transition-colors sm:text-[62px]">
+              <h1 className="font-serif text-[34px] font-normal leading-[1.06] tracking-[-0.02em] text-ink transition-colors sm:text-[52px] lg:text-[62px]">
                 <span className="transition-colors duration-300 hover:text-accent-pale">Talk to Anu</span> about
                 <span className="mt-1 block pr-3 italic leading-[1.06]">
                   <span className="bg-gradient-to-r from-accent-soft via-fuchsia-300 to-accent-pale bg-clip-text text-transparent">
@@ -125,22 +125,22 @@ export default function ChatView({
                 </span>
               </h1>
 
-              <p className="mt-7 max-w-[540px] text-[15px] leading-[1.72] text-muted">
+              <p className="mt-5 max-w-[540px] text-[14px] leading-[1.7] text-muted sm:mt-7 sm:text-[15px]">
                 Ask a question, drop a file, arm a skill or connect an MCP server. Answers stream back with
                 markdown, code blocks, tables and maths rendered properly.
               </p>
 
-              <div className="mt-9 flex flex-wrap items-center gap-3">
+              <div className="mt-7 flex flex-wrap items-center gap-3 sm:mt-9">
                 <button
                   onClick={() => focusComposer()}
-                  className="group inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 text-[13.5px] font-medium text-white shadow-[0_0_30px_-8px_rgba(139,92,246,0.9)] transition-all hover:bg-accent-soft hover:shadow-[0_0_40px_-6px_rgba(167,139,250,0.9)]"
+                  className="group inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-medium text-white sm:px-5 sm:py-3 sm:text-[13.5px] shadow-[0_0_30px_-8px_rgba(139,92,246,0.9)] transition-all hover:bg-accent-soft hover:shadow-[0_0_40px_-6px_rgba(167,139,250,0.9)]"
                 >
                   Start typing
                   <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </button>
                 <button
                   onClick={() => onOpenPanelTab("connectors")}
-                  className="inline-flex items-center gap-2 rounded-lg border border-line px-5 py-3 text-[13.5px] font-medium text-ink transition-colors hover:border-accent/50 hover:text-accent-pale"
+                  className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-[13px] font-medium text-ink sm:px-5 sm:py-3 sm:text-[13.5px] transition-colors hover:border-accent/50 hover:text-accent-pale"
                 >
                   <Terminal className="h-3.5 w-3.5" />
                   Connect a tool
@@ -148,7 +148,7 @@ export default function ChatView({
               </div>
             </div>
 
-            <div className="mt-12 grid gap-2 sm:grid-cols-2">
+            <div className="mt-9 grid gap-2 sm:mt-12 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s.title}
@@ -170,7 +170,7 @@ export default function ChatView({
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[760px] space-y-7 px-4 py-6 sm:px-6">
+          <div className="mx-auto w-full max-w-[760px] space-y-6 px-3.5 py-5 sm:space-y-7 sm:px-6 sm:py-6">
             {messages.map((m) => (
               <Message
                 key={m.id}

@@ -11,6 +11,8 @@ export interface Message {
   id: string;
   role: Role;
   content: string;
+  /** Reasoning tokens, when the model returns them. */
+  thinking?: string;
   attachments?: Attachment[];
   createdAt: number;
   pending?: boolean;

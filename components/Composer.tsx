@@ -66,7 +66,7 @@ export default function Composer() {
   const enabledServers = store.servers.filter((s) => s.enabled).length;
 
   return (
-    <div className="px-4 pb-4 pt-1 sm:px-6">
+    <div className="px-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-1 sm:px-6 sm:pb-4">
       <div className="mx-auto w-full max-w-[820px]">
         <div
           onDragOver={(e) => {

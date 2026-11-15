@@ -8,7 +8,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { Message as Msg } from "@/lib/types";
 import { cx, formatBytes } from "@/lib/utils";
-import { Check, Copy, File, Image as ImageIcon, Refresh } from "./Icons";
+import { Check, Chevron, Copy, File, Image as ImageIcon, Refresh, Sparkles } from "./Icons";
 
 /** Models sometimes emit \( … \) and \[ … \]; normalise to $ … $ / $$ … $$. */
 function normalizeMath(input: string): string {
@@ -43,6 +43,46 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
       <pre className="overflow-x-auto px-3.5 py-3 font-mono text-[12.5px] leading-relaxed text-accent-pale/90">
         <code>{code}</code>
       </pre>
+    </div>
+  );
+}
+
+
+function ThinkingBlock({
+  text,
+  streaming,
+  hasContent,
+}: {
+  text: string;
+  streaming: boolean;
+  hasContent: boolean;
+}) {
+  const [manual, setManual] = useState<boolean | null>(null);
+  const auto = streaming && !hasContent;
+  const open = manual ?? auto;
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-xl border border-line bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setManual(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/[0.03]"
+      >
+        <Sparkles className={cx("h-3.5 w-3.5", streaming ? "animate-pulse text-accent-soft" : "text-faint")} />
+        <span className="text-[11.5px] font-medium text-muted">
+          {streaming ? "Thinking…" : "Thought process"}
+        </span>
+        <span className="ml-auto font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/70">
+          {streaming ? "live" : "done"}
+        </span>
+        <Chevron className={cx("h-3 w-3 text-faint transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <div className="max-h-[280px] overflow-y-auto border-t border-line px-3 py-2.5 text-[12.5px] leading-[1.7] whitespace-pre-wrap text-faint">
+          {text}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -198,6 +238,14 @@ export default function Message({
 
   return (
     <div className="group animate-rise">
+      {message.thinking ? (
+        <ThinkingBlock
+          text={message.thinking}
+          streaming={Boolean(message.pending)}
+          hasContent={Boolean(message.content)}
+        />
+      ) : null}
+
       {message.pending && !message.content ? (
         <div className="flex items-center gap-1.5 py-2">
           {[0, 1, 2].map((i) => (

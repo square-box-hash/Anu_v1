@@ -433,7 +433,7 @@ export default function RightPanel({
   onClose: () => void;
 }) {
   return (
-    <aside className="flex h-full w-[320px] shrink-0 flex-col border-l border-line bg-soft/70">
+    <aside className="flex h-full w-[min(92vw,320px)] shrink-0 flex-col border-l border-line bg-soft/95 backdrop-blur xl:w-[320px] xl:bg-soft/70">
       <div className="flex items-center gap-1 border-b border-line px-2 py-2">
         {TABS.map((t) => (
           <button

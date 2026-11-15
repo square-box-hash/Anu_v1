@@ -8,6 +8,7 @@ Live: https://anuv1.vercel.app/
 
 ## Features
 
+- **Thinking** — when the model returns reasoning tokens (`includeThoughts`), they stream into a collapsible "Thought process" panel: it opens while the model is thinking, closes when the answer starts, and can be re-opened any time. Set `GEMINI_THINKING=0` to disable.
 - **Chat** — real token streaming from Gemini, full markdown (GFM tables, blockquotes, ordered and nested lists, links, headings) with KaTeX for inline `$…$` and display `$$…$$` maths, fenced code blocks with copy, per-message copy and regenerate, stop generation, auto-scroll.
 - **Landing** — a serif hero on a near-black violet canvas; the purple glow follows your cursor and text shifts to violet on hover.
 - **Chat history** — grouped by Today / Previous 7 days / Older, searchable, rename inline, delete, persisted in `localStorage`. `⌘K` / `Ctrl+K` starts a new chat.
@@ -16,7 +17,7 @@ Live: https://anuv1.vercel.app/
 - **MCP connectors** — add Model Context Protocol servers over `stdio`, `http` or `sse` and toggle them per session. Nothing is pre-connected.
 - **Harness bridge** — endpoint, bearer token, agent mode, auto-approve tools, max steps per turn and a subagent list, all forwarded with the request.
 - **Config** — model picker, temperature, system prompt, clear-all-chats.
-- **Responsive** — collapsible sidebar, right context panel (`⌘B`), mobile drawers.
+- **Responsive** — collapsible sidebar, right context panel (`⌘B`); on phones the panel becomes a drawer that starts closed, the hero reflows to a single column, and the composer respects the safe area.
 
 ## Run it
 
@@ -47,8 +48,8 @@ NEXT_PUBLIC_GEMINI_MODELS=gemini-4-hydrogen,gemini-4-hydrogen-pro
 
 1. `components/Composer.tsx` → `lib/store.tsx` `send()` appends your message and a pending reply.
 2. `POST /api/chat` receives a typed `ChatRequest` (messages, model, system prompt, temperature, attachments, enabled skills, MCP servers, harness config).
-3. `lib/providers/gemini.ts` calls `:streamGenerateContent?alt=sse` and yields text deltas.
-4. The route pipes those deltas to the browser as a plain text stream; the store appends each chunk to the message as it arrives.
+3. `lib/providers/gemini.ts` calls `:streamGenerateContent?alt=sse` and yields typed deltas (`text` or `thought`).
+4. The route pipes those as newline-delimited JSON (`{"type":"thought","text":"…"}`); the store keeps reasoning and answer text in separate fields as they arrive.
 
 The Gemini key is read server-side only (`GEMINI_API_KEY`) and never reaches the client.
 
