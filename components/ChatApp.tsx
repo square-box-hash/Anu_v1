@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StoreProvider, useStore } from "@/lib/store";
 import ChatView from "./ChatView";
 import Sidebar from "./Sidebar";
@@ -13,6 +13,20 @@ function Workspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [tab, setTab] = useState<PanelTab>("skills");
+
+  const spotRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = spotRef.current;
+    if (!el) return;
+    const onMove = (e: PointerEvent) => {
+      el.style.setProperty("--mx", `${e.clientX}px`);
+      el.style.setProperty("--my", `${e.clientY}px`);
+      el.style.opacity = "1";
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -33,7 +47,8 @@ function Workspace() {
 
   return (
     <div className="app-bg relative flex h-[100dvh] w-full overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 grid-overlay opacity-70" />
+      <div ref={spotRef} className="spotlight pointer-events-none fixed inset-0 z-0 opacity-0" />
+      <div className="pointer-events-none absolute inset-0 grid-overlay opacity-60" />
 
       {/* desktop sidebar */}
       <div className="relative z-10 hidden lg:block">
@@ -78,6 +93,10 @@ function Workspace() {
           panelOpen={panelOpen}
           onOpenSettings={() => {
             setTab("settings");
+            setPanelOpen(true);
+          }}
+          onOpenPanelTab={(t) => {
+            setTab(t);
             setPanelOpen(true);
           }}
         />

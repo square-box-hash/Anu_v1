@@ -8,7 +8,8 @@ Live: https://anuv1.vercel.app/
 
 ## Features
 
-- **Chat** — real token streaming from Gemini, markdown-lite rendering (bold, italics, inline code, fenced code blocks with copy), per-message copy and regenerate, stop generation, auto-scroll.
+- **Chat** — real token streaming from Gemini, full markdown (GFM tables, blockquotes, ordered and nested lists, links, headings) with KaTeX for inline `$…$` and display `$$…$$` maths, fenced code blocks with copy, per-message copy and regenerate, stop generation, auto-scroll.
+- **Landing** — a serif hero on a near-black violet canvas; the purple glow follows your cursor and text shifts to violet on hover.
 - **Chat history** — grouped by Today / Previous 7 days / Older, searchable, rename inline, delete, persisted in `localStorage`. `⌘K` / `Ctrl+K` starts a new chat.
 - **File attachments** — paperclip picker and drag-and-drop onto the composer, up to 8 files, chips with size/type, removable before sending. File metadata is sent with the request; the files themselves never leave the browser.
 - **Skills** — instruction packs you add yourself; enabled skills are sent with each request and shown in the header. Nothing is pre-installed.
@@ -75,8 +76,9 @@ lib/
 
 ## Design notes
 
-Near-black canvas (`#07060b`) with violet radial glows and a faint grid, panels on `#100d19`,
-violet accent `#8b5cf6` / `#a78bfa`. Your messages sit in a neutral rounded box on the right;
+Near-black canvas (`#050408`) with a faint grid and a cursor-following violet spotlight, panels on
+`#100d19`, violet accent `#8b5cf6` / `#a78bfa`. The landing hero pairs a serif headline with an
+italic violet-gradient second line, in the spirit of open-harness. Your messages sit in a neutral rounded box on the right;
 assistant replies are plain text with copy / regenerate actions beneath, the way Claude renders
 a conversation.
 

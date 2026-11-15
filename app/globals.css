@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --bg: #07060b;
-  --bg-soft: #0b0912;
+  --bg: #050408;
+  --bg-soft: #08060e;
   --panel: #100d19;
   --panel-2: #16121f;
   --line: rgba(150, 122, 255, 0.13);
@@ -36,10 +36,18 @@ body {
 .app-bg {
   background-color: var(--bg);
   background-image:
-    radial-gradient(1200px 700px at 50% -18%, rgba(139, 92, 246, 0.34), transparent 62%),
-    radial-gradient(900px 620px at -6% 26%, rgba(124, 58, 237, 0.26), transparent 66%),
-    radial-gradient(900px 620px at 106% 34%, rgba(192, 132, 252, 0.18), transparent 66%),
-    radial-gradient(1200px 760px at 50% 118%, rgba(109, 40, 217, 0.3), transparent 64%);
+    radial-gradient(1000px 560px at 50% -22%, rgba(139, 92, 246, 0.12), transparent 62%),
+    radial-gradient(820px 540px at 6% 108%, rgba(109, 40, 217, 0.1), transparent 66%);
+}
+
+.spotlight {
+  background: radial-gradient(
+    520px circle at var(--mx, -1000px) var(--my, -1000px),
+    rgba(139, 92, 246, 0.17),
+    rgba(139, 92, 246, 0.05) 38%,
+    transparent 66%
+  );
+  transition: opacity 0.45s ease;
 }
 
 .grid-overlay {
@@ -126,4 +134,27 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--accent-pale);
   border: 2px solid var(--accent);
   cursor: pointer;
+}
+
+/* markdown body */
+.md-body > :first-child {
+  margin-top: 0;
+}
+.md-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* KaTeX, tuned for the dark theme */
+.katex {
+  color: var(--text);
+  font-size: 1.02em;
+}
+.katex-display {
+  margin: 0.8rem 0;
+  padding: 2px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.katex-display > .katex {
+  color: var(--accent-pale);
 }

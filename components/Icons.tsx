@@ -22,6 +22,7 @@ export const Search = (p: P) => <S {...p}><circle cx="11" cy="11" r="7" /><path 
 export const Trash = (p: P) => <S {...p}><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" /></S>;
 export const Pencil = (p: P) => <S {...p}><path d="M4 20h4l10-10-4-4L4 16v4Z" /><path d="m14 6 4 4" /></S>;
 export const Paperclip = (p: P) => <S {...p}><path d="M20 11.5 12 19.5a4.5 4.5 0 0 1-6.4-6.4l7.4-7.4a3 3 0 0 1 4.3 4.3l-7.4 7.4a1.5 1.5 0 0 1-2.2-2.1l6.7-6.7" /></S>;
+export const ArrowRight = (p: P) => <S {...p}><path d="M4 12h15M13 5l7 7-7 7" /></S>;
 export const Send = (p: P) => <S {...p}><path d="M12 19V5M5 12l7-7 7 7" /></S>;
 export const Stop = (p: P) => <S {...p}><rect x="6" y="6" width="12" height="12" rx="2" /></S>;
 export const Sparkles = (p: P) => <S {...p}><path d="M12 3l1.8 4.6L18.5 9.5 13.8 11.4 12 16l-1.8-4.6L5.5 9.5l4.7-1.9L12 3Z" /><path d="M18 16.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2Z" /></S>;

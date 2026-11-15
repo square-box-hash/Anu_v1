@@ -8,6 +8,12 @@ import { cx, formatBytes, uid } from "@/lib/utils";
 import { Bolt, Chevron, File, Image as ImageIcon, Paperclip, Send, Stop, Terminal, X } from "./Icons";
 import { StatusDot } from "./ui";
 
+export function focusComposer() {
+  const el = document.getElementById("composer-input") as HTMLTextAreaElement | null;
+  el?.focus();
+  el?.setSelectionRange(el.value.length, el.value.length);
+}
+
 export default function Composer() {
   const store = useStore();
   const [text, setText] = useState("");
@@ -101,6 +107,7 @@ export default function Composer() {
           )}
 
           <textarea
+            id="composer-input"
             ref={taRef}
             rows={1}
             value={text}
