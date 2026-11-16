@@ -53,6 +53,43 @@ function storageKeyFor(userId: string | undefined): string {
   return userId ? `${STORAGE_PREFIX}.${userId}` : `${STORAGE_PREFIX}.anon`;
 }
 
+/**
+ * Write a snapshot of the store to localStorage. Chat history lives here first —
+ * Firestore is only ever a mirror — so a full quota must degrade gracefully
+ * instead of losing everything.
+ */
+function writeLocalSnapshot(key: string, payload: string): boolean {
+  try {
+    localStorage.setItem(key, payload);
+    return true;
+  } catch {
+    /* most likely QuotaExceededError — fall through and trim */
+  }
+
+  try {
+    const parsed = JSON.parse(payload) as Persisted;
+    let chats = [...parsed.chats].sort((a, b) => b.updatedAt - a.updatedAt);
+
+    while (chats.length > 1) {
+      chats = chats.slice(0, Math.max(1, Math.floor(chats.length * 0.75)));
+      try {
+        localStorage.setItem(key, JSON.stringify({ ...parsed, chats }));
+        console.warn(`[anu] Local storage is full — kept the ${chats.length} most recent chats.`);
+        return true;
+      } catch {
+        /* keep trimming */
+      }
+    }
+
+    localStorage.setItem(key, JSON.stringify({ ...parsed, chats: [], activeId: null }));
+    console.warn("[anu] Local storage is full — cleared the local chat cache.");
+    return true;
+  } catch (error) {
+    console.error("[anu] Could not write chat history to local storage:", error);
+    return false;
+  }
+}
+
 interface Persisted {
   chats: Chat[];
   activeId: string | null;
@@ -267,10 +304,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const knownCloudIdsRef = useRef<Set<string>>(new Set());
   const deletedChatIdsRef = useRef<Set<string>>(new Set());
 
+  const userIdRef = useRef<string | undefined>(userId);
+  userIdRef.current = userId;
+
+  // Local writes are debounced: during streaming, `state` changes on every token.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingKeyRef = useRef<string | null>(null);
+
+  /** Write any pending snapshot immediately (tab hidden, unmount, account switch). */
+  const flushLocal = useCallback(() => {
+    if (!saveTimerRef.current) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+
+    const key = pendingKeyRef.current ?? storageKeyFor(userIdRef.current);
+    pendingKeyRef.current = null;
+    try {
+      writeLocalSnapshot(key, JSON.stringify(stateRef.current));
+    } catch {
+      /* nothing more we can do here */
+    }
+  }, []);
+
   stateRef.current = state;
 
   // Load user-scoped localStorage state when active user changes
   useEffect(() => {
+    // Don't strand an unwritten snapshot on the account that is being switched out.
+    flushLocal();
     setHydrated(false);
     knownCloudIdsRef.current = new Set();
     deletedChatIdsRef.current = new Set();
@@ -290,17 +351,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setState(initial);
     setHydrated(true);
-  }, [userId]);
+  }, [userId, flushLocal]);
 
-  // Persist state to user-scoped localStorage
+  // Persist state to user-scoped localStorage, debounced so a streaming turn
+  // doesn't serialise the whole store on every delta.
   useEffect(() => {
     if (!hydrated) return;
-    try {
-      localStorage.setItem(storageKeyFor(userId), JSON.stringify(state));
-    } catch {
-      /* storage full or blocked */
-    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    pendingKeyRef.current = storageKeyFor(userId);
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      const key = pendingKeyRef.current ?? storageKeyFor(userIdRef.current);
+      pendingKeyRef.current = null;
+      try {
+        writeLocalSnapshot(key, JSON.stringify(stateRef.current));
+      } catch {
+        /* ignore */
+      }
+    }, 350);
   }, [state, hydrated, userId]);
+
+  // A reload or a closed tab must not lose the turn that was still streaming.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushLocal();
+    };
+    window.addEventListener("pagehide", flushLocal);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushLocal);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flushLocal();
+    };
+  }, [flushLocal]);
 
   // Sync verified user's profile and chats with Firestore
   useEffect(() => {
