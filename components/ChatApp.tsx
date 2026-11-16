@@ -141,7 +141,7 @@ function Workspace() {
 }
 
 function AuthGate() {
-  const { user, loading } = useAuth();
+  const { user, ready } = useAuth();
   const spotRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -161,7 +161,7 @@ function AuthGate() {
       <div ref={spotRef} className="spotlight pointer-events-none fixed inset-0 z-0 opacity-0" />
       <div className="pointer-events-none absolute inset-0 grid-overlay opacity-60" />
 
-      {loading ? (
+      {!ready ? (
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3">
           <Logo className="h-11 w-11 animate-pulse drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]" />
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-faint">Loading workspace…</p>

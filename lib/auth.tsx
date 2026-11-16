@@ -15,11 +15,22 @@ import {
   updateProfile,
 } from "firebase/auth";
 import type { User } from "firebase/auth";
-import { auth, githubProvider, googleProvider, testFirestoreConnection } from "./firebase";
+import type { PersistenceMode } from "./firebase";
+import {
+  auth,
+  ensureAuthPersistence,
+  githubProvider,
+  googleProvider,
+  testFirestoreConnection,
+} from "./firebase";
 
 export interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  /** False until the stored session has been read back — gate the UI on this, not on `loading`. */
+  ready: boolean;
+  /** How long the current sign-in survives on this device. */
+  persistence: PersistenceMode | null;
   hasPasswordProvider: boolean;
   hasGoogleProvider: boolean;
   hasGithubProvider: boolean;
@@ -77,27 +88,48 @@ export function formatAuthError(error: unknown): string {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [persistence, setPersistence] = useState<PersistenceMode | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+
+    // Apply durable persistence *before* subscribing, so the first auth event
+    // already carries the restored user instead of flashing the sign-in screen.
+    const start = (mode: PersistenceMode) => {
+      if (cancelled) return;
+      setPersistence(mode);
+      unsub = onAuthStateChanged(auth, (nextUser) => {
+        setUser(nextUser);
+        setLoading(false);
+      });
+    };
+
     void testFirestoreConnection();
-    const unsub = onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
-      setLoading(false);
-    });
-    return () => unsub();
+    void ensureAuthPersistence()
+      .then(start)
+      .catch(() => start("memory"));
+
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
+    await ensureAuthPersistence();
     await signInWithPopup(auth, googleProvider);
   }, []);
 
   const signInWithGithub = useCallback(async () => {
+    await ensureAuthPersistence();
     await signInWithPopup(auth, githubProvider);
   }, []);
 
   const signUpWithEmail = useCallback(
     async ({ email, password, displayName }: { email: string; password: string; displayName?: string }) => {
+      await ensureAuthPersistence();
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const cleanName = displayName?.trim();
       if (cleanName) {
@@ -115,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signInWithEmail = useCallback(async ({ email, password }: { email: string; password: string }) => {
+    await ensureAuthPersistence();
     await signInWithEmailAndPassword(auth, email.trim(), password);
   }, []);
 
@@ -164,6 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       loading,
+      ready: !loading && persistence !== null,
+      persistence,
       hasPasswordProvider,
       hasGoogleProvider,
       hasGithubProvider,
@@ -180,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [
       user,
       loading,
+      persistence,
       hasPasswordProvider,
       hasGoogleProvider,
       hasGithubProvider,

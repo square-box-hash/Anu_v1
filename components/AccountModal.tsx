@@ -9,6 +9,7 @@ import { inputClass } from "./ui";
 export default function AccountModal({ onClose }: { onClose: () => void }) {
   const {
     user,
+    persistence,
     hasGoogleProvider,
     hasGithubProvider,
     hasPasswordProvider,
@@ -238,6 +239,16 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
         </form>
 
         <div className="mt-4 border-t border-line pt-3">
+          <p className="mb-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-faint">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400/80" />
+            <span>
+              {persistence === "local"
+                ? "You'll stay signed in on this device until you sign out."
+                : persistence === "session"
+                  ? "You'll stay signed in until this browser window closes — your browser blocked permanent storage."
+                  : "Your browser is blocking site storage, so a reload will sign you out."}
+            </span>
+          </p>
           <button
             type="button"
             onClick={() => void signOutUser()}
