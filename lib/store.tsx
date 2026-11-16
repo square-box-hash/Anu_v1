@@ -800,7 +800,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         buffer += decoder.decode();
         if (buffer.trim()) handleLine(buffer);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Something went wrong.";
+        const raw = error instanceof Error ? error.message : "Something went wrong.";
+        // A body that dies mid-stream surfaces as the browser's own TypeError,
+        // which says nothing useful. Name the likely cause instead.
+        const dropped = /network error|failed to fetch|load failed|networkerror|terminated|other side closed/i.test(
+          raw,
+        );
+        const message = dropped
+          ? "The connection dropped before the answer arrived. That usually means the model was still thinking and something between your browser and the server gave up waiting — try again, or pick a faster model."
+          : raw;
         const errorPatch: Partial<Message> = {
           content: acc ? `${acc}\n\n**Request failed.** ${message}` : `**Request failed.** ${message}`,
           thinking: think || undefined,

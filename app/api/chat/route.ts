@@ -30,7 +30,8 @@ type Event =
   | { type: "notice"; text: string }
   | { type: "tool_call"; id: string; server: string; name: string; args: unknown }
   | { type: "tool_result"; id: string; ok: boolean; content: string; error?: string }
-  | { type: "error"; text: string };
+  | { type: "error"; text: string }
+  | { type: "ping" };
 
 const isSkillTool = (name: string) => (SKILL_TOOL_NAMES as readonly string[]).includes(name);
 
@@ -121,6 +122,19 @@ export async function POST(request: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: Event) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+
+      // The model can think for a minute before its first token, and a response
+      // body that sends nothing for that long gets reaped by proxies and load
+      // balancers. One byte now, then a ping every ten seconds, keeps the
+      // connection open until real output starts. Clients ignore unknown types.
+      send({ type: "ping" });
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`${JSON.stringify({ type: "ping" })}\n`));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 10_000);
 
       try {
         // Custom HTTP (OpenAI-compatible) endpoint branch — lets users experiment with local/custom model APIs
@@ -321,6 +335,8 @@ export async function POST(request: Request) {
             temperature: body.temperature,
             declarations,
             customModels: body.customModels,
+            // Answer quickly for easy questions; save deep thinking for hard ones.
+            thinkingLevel: complexity === "simple" ? "low" : complexity === "complex" ? "high" : "medium",
             onNotice: (text) => send({ type: "notice", text }),
             onFallbackModel: (resolved) => {
               activeModel = resolved;
@@ -455,6 +471,7 @@ export async function POST(request: Request) {
         }
         send({ type: "error", text: msg.slice(0, 400) });
       } finally {
+        clearInterval(heartbeat);
         controller.close();
       }
     },

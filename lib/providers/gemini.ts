@@ -168,6 +168,19 @@ function isConfigRejection(error: unknown): boolean {
   return /thinking|thought|system|developer|tool|function|unsupported|invalid|not enabled|not supported/i.test(message);
 }
 
+export type ThinkingLevelName = "minimal" | "low" | "medium" | "high";
+
+/**
+ * Gemini 4 thinks at HIGH unless told otherwise, which can push the first token
+ * thirty seconds out — long enough for an idle proxy to drop the connection.
+ */
+const THINKING_LEVELS: Record<ThinkingLevelName, ThinkingLevel> = {
+  minimal: ThinkingLevel.MINIMAL,
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
+};
+
 function buildGenerateConfig(
   model: string,
   options: {
@@ -176,6 +189,7 @@ function buildGenerateConfig(
     declarations?: FunctionDeclaration[];
     includeThoughts?: boolean;
     includeTools?: boolean;
+    thinkingLevel?: ThinkingLevelName;
   },
 ) {
   const gemma = isGemma(model);
@@ -199,7 +213,7 @@ function buildGenerateConfig(
 
   if (supportsThinking) {
     config.thinkingConfig = g4
-      ? { includeThoughts: true, thinkingLevel: ThinkingLevel.HIGH }
+      ? { includeThoughts: true, thinkingLevel: THINKING_LEVELS[options.thinkingLevel ?? "high"] }
       : { includeThoughts: true };
   }
 
@@ -232,6 +246,8 @@ export interface StreamOptions {
   customModels?: CustomModelConfig[];
   onNotice?: (text: string) => void;
   onFallbackModel?: (model: string) => void;
+  /** How hard the model thinks before answering. Lower answers sooner. */
+  thinkingLevel?: ThinkingLevelName;
 }
 
 /**
@@ -280,6 +296,7 @@ export async function* streamGemini(options: StreamOptions): AsyncGenerator<Gemi
           declarations: options.declarations,
           includeThoughts: attempt.includeThoughts,
           includeTools: attempt.includeTools,
+          thinkingLevel: options.thinkingLevel,
         });
 
         const responseStream = await ai.models.generateContentStream({
