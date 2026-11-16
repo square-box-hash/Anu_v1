@@ -254,7 +254,18 @@ const components: Components = {
 };
 
 /** Everything the workspace knows about how a reply was produced, as plain JSON. */
-export function traceFor(m: Msg) {
+const PREVIEW_CHARS = 600;
+
+/** Long answers are summarised, not dumped — a 20k-character reply makes the panel useless. */
+function preview(text: string) {
+  return {
+    characters: text.length,
+    preview: text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS)}…` : text,
+    truncated: text.length > PREVIEW_CHARS,
+  };
+}
+
+export function traceFor(m: Msg, options: { fullText?: boolean } = {}) {
   const tools = (m.toolCalls ?? []).map((call: ToolCall) => ({
     id: call.id,
     server: call.server,
@@ -284,16 +295,24 @@ export function traceFor(m: Msg) {
     routing: m.routing ?? null,
     tools: { count: tools.length, calls: tools },
     notices: m.notices ?? [],
-    reasoning: m.thinking ? { characters: m.thinking.length, text: m.thinking } : null,
+    reasoning: m.thinking
+      ? options.fullText
+        ? { characters: m.thinking.length, text: m.thinking }
+        : preview(m.thinking)
+      : null,
     quote: m.quote ?? null,
     attachments: (m.attachments ?? []).map((a) => ({ name: a.name, type: a.type, size: a.size })),
-    content: { characters: m.content.length, text: m.content },
+    content: options.fullText ? { characters: m.content.length, text: m.content } : preview(m.content),
   };
 }
 
 function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const json = React.useMemo(() => JSON.stringify(traceFor(message), null, 2), [message]);
+  const [fullText, setFullText] = useState(false);
+  const json = React.useMemo(
+    () => JSON.stringify(traceFor(message, { fullText }), null, 2),
+    [message, fullText],
+  );
 
   const copy = async () => {
     try {
@@ -316,8 +335,20 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
             {message.role}
           </span>
           <button
+            onClick={() => setFullText((value) => !value)}
+            title="Include the whole reply instead of a preview"
+            className={cx(
+              "ml-auto rounded-md border px-1.5 py-1 text-[10px] transition-colors",
+              fullText
+                ? "border-accent/40 bg-accent/15 text-accent-pale"
+                : "border-line text-faint hover:text-ink",
+            )}
+          >
+            full text
+          </button>
+          <button
             onClick={copy}
-            className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-white/5 hover:text-ink"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-white/5 hover:text-ink"
           >
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {copied ? "Copied" : "Copy JSON"}
