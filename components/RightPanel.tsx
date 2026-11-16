@@ -978,6 +978,21 @@ function SettingsTab() {
   );
 }
 
+/**
+ * Just the contents of one tab, so the same panels can be rendered inside the
+ * left navigation column instead of a separate right-hand drawer.
+ */
+export function PanelBody({ tab }: { tab: PanelTab }) {
+  return (
+    <>
+      {tab === "skills" && <SkillsTab />}
+      {tab === "connectors" && <ConnectorsTab />}
+      {tab === "harness" && <HarnessTab />}
+      {tab === "settings" && <SettingsTab />}
+    </>
+  );
+}
+
 export default function RightPanel({
   tab,
   onTabChange,
@@ -1013,10 +1028,7 @@ export default function RightPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {tab === "skills" && <SkillsTab />}
-        {tab === "connectors" && <ConnectorsTab />}
-        {tab === "harness" && <HarnessTab />}
-        {tab === "settings" && <SettingsTab />}
+        <PanelBody tab={tab} />
       </div>
     </aside>
   );

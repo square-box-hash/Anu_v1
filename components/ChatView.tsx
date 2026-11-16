@@ -8,7 +8,7 @@ import Logo from "./Logo";
 import Message from "./Message";
 import Composer, { focusComposer } from "./Composer";
 import type { PanelTab } from "./RightPanel";
-import { ArrowRight, Bolt, Chevron, Layers, Menu, PanelRight, Sparkles, Terminal } from "./Icons";
+import { ArrowRight, Bolt, Chevron, Layers, Menu, Sparkles, Terminal } from "./Icons";
 import { Pill, StatusDot } from "./ui";
 
 const SUGGESTIONS = [
@@ -20,16 +20,10 @@ const SUGGESTIONS = [
 
 export default function ChatView({
   onOpenSidebar,
-  onTogglePanel,
-  panelOpen,
-  onOpenSettings,
-  onOpenPanelTab,
+  onOpenSection,
 }: {
   onOpenSidebar: () => void;
-  onTogglePanel: () => void;
-  panelOpen: boolean;
-  onOpenSettings: () => void;
-  onOpenPanelTab: (tab: PanelTab) => void;
+  onOpenSection: (tab: PanelTab) => void;
 }) {
   const store = useStore();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -88,22 +82,11 @@ export default function ChatView({
         </div>
 
         <button
-          onClick={onOpenSettings}
+          onClick={() => onOpenSection("settings")}
           className="hidden items-center gap-1.5 rounded-lg border border-line px-2 py-1.5 text-[11px] text-muted transition-colors hover:border-linestrong hover:text-accent-pale sm:flex"
         >
           <Sparkles className="h-3 w-3 text-accent-soft" />
           Settings
-        </button>
-
-        <button
-          onClick={onTogglePanel}
-          className={cx(
-            "rounded-lg p-1.5 transition-colors",
-            panelOpen ? "bg-accent/15 text-accent-pale" : "text-muted hover:bg-white/5 hover:text-ink",
-          )}
-          aria-label="Toggle context panel"
-        >
-          <PanelRight className="h-4 w-4" />
         </button>
       </header>
 
@@ -141,7 +124,7 @@ export default function ChatView({
                   <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </button>
                 <button
-                  onClick={() => onOpenPanelTab("connectors")}
+                  onClick={() => onOpenSection("connectors")}
                   className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-[13px] font-medium text-ink sm:px-5 sm:py-3 sm:text-[13.5px] transition-colors hover:border-accent/50 hover:text-accent-pale"
                 >
                   <Terminal className="h-3.5 w-3.5" />

@@ -232,6 +232,27 @@ export default function Composer() {
             dragging ? "border-accent/70 bg-accent/[0.06]" : "border-line focus-within:border-accent/40",
           )}
         >
+          {store.pendingQuote && (
+            <div className="flex items-start gap-2 border-b border-line px-3 py-2">
+              <span className="mt-[3px] h-3 w-[2px] shrink-0 rounded-full bg-accent-soft" />
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-faint/80">
+                  replying to {store.pendingQuote.role === "user" ? "your message" : "the reply"}
+                </div>
+                <p className="line-clamp-2 whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-muted">
+                  {store.pendingQuote.text}
+                </p>
+              </div>
+              <button
+                onClick={() => store.setQuote(null)}
+                className="shrink-0 rounded p-0.5 text-faint transition-colors hover:bg-white/10 hover:text-ink"
+                aria-label="Remove quoted text"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
           {files.length > 0 && (
             <div className="flex flex-wrap gap-1.5 border-b border-line px-3 py-2">
               {files.map((f) => (
