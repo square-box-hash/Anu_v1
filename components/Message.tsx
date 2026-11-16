@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -305,9 +306,9 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative flex max-h-[86vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-line bg-[#0d0a16] shadow-2xl">
+      <div className="relative flex max-h-[88dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-2xl border border-line bg-[#0d0a16] shadow-2xl sm:max-h-[86vh] sm:rounded-2xl">
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
           <Cpu className="h-3.5 w-3.5 text-accent-soft" />
           <h2 className="min-w-0 truncate text-[12.5px] font-semibold text-ink">How this reply was produced</h2>
@@ -329,7 +330,7 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-black/40 p-3">
+        <div className="min-h-0 flex-1 overflow-auto bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.65] text-accent-pale/85">
             {json}
           </pre>
@@ -358,6 +359,11 @@ export default function Message({
   const [copied, setCopied] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [inspecting, setInspecting] = useState(false);
+  // Overlays are portalled to <body>: every message is its own stacking context
+  // (the rise animation leaves a transform in place), so a fixed overlay inside
+  // one message painted underneath the messages after it.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
   const { speak, stop, speakingId, supported: speechSupported } = useSpeech();
   const isUser = message.role === "user";
@@ -601,7 +607,7 @@ export default function Message({
             {actionBar("right")}
           </div>
         </div>
-        {overlays}
+        {mounted ? createPortal(overlays, document.body) : null}
       </div>
     );
   }
@@ -686,7 +692,7 @@ export default function Message({
 
       {!message.pending && message.content ? actionBar("left") : null}
 
-      {overlays}
+      {mounted ? createPortal(overlays, document.body) : null}
     </div>
   );
 }
