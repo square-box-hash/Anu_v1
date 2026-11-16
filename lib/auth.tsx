@@ -15,7 +15,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import type { User } from "firebase/auth";
-import { auth, googleProvider, testFirestoreConnection } from "./firebase";
+import { auth, githubProvider, googleProvider, testFirestoreConnection } from "./firebase";
 
 export interface AuthContextValue {
   user: User | null;
@@ -23,6 +23,7 @@ export interface AuthContextValue {
   hasPasswordProvider: boolean;
   hasGoogleProvider: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithGithub: () => Promise<void>;
   signUpWithEmail: (input: { email: string; password: string; displayName?: string }) => Promise<void>;
   signInWithEmail: (input: { email: string; password: string }) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -84,6 +85,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     await signInWithPopup(auth, googleProvider);
+  }, []);
+
+  const signInWithGithub = useCallback(async () => {
+    await signInWithPopup(auth, githubProvider);
   }, []);
 
   const signUpWithEmail = useCallback(
@@ -156,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPasswordProvider,
       hasGoogleProvider,
       signInWithGoogle,
+      signInWithGithub,
       signUpWithEmail,
       signInWithEmail,
       resetPassword,
@@ -170,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPasswordProvider,
       hasGoogleProvider,
       signInWithGoogle,
+      signInWithGithub,
       signUpWithEmail,
       signInWithEmail,
       resetPassword,
