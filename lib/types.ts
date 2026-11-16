@@ -33,12 +33,22 @@ export interface RoutingInfo {
   steps?: string[];
 }
 
+export interface QuoteRef {
+  /** The exact text the user highlighted. */
+  text: string;
+  /** Message the highlight came from. */
+  messageId: string;
+  role: Role;
+}
+
 export interface Message {
   id: string;
   role: Role;
   content: string;
   model?: string;
   routing?: RoutingInfo;
+  /** Text this message was written in reply to. */
+  quote?: QuoteRef;
   toolCalls?: ToolCall[];
   notices?: string[];
   /** Reasoning tokens, when the model returns them. */

@@ -39,6 +39,7 @@ import type {
   McpServer,
   Message,
   OrchestrationConfig,
+  QuoteRef,
   RepoSkill,
   RoutingInfo,
   Settings,
@@ -258,6 +259,9 @@ interface StoreValue extends Persisted {
   refreshRepoSkills: () => Promise<void>;
   streaming: boolean;
   hydrated: boolean;
+  /** Text the user highlighted, waiting to be sent with the next message. */
+  pendingQuote: QuoteRef | null;
+  setQuote: (quote: QuoteRef | null) => void;
   createChat: () => string;
   selectChat: (id: string) => void;
   deleteChat: (id: string) => void;
@@ -298,6 +302,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [streaming, setStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [repoSkills, setRepoSkills] = useState<RepoSkill[]>([]);
+  const [pendingQuote, setPendingQuote] = useState<QuoteRef | null>(null);
+  const pendingQuoteRef = useRef<QuoteRef | null>(null);
+  pendingQuoteRef.current = pendingQuote;
   const stateRef = useRef(state);
   const abortRef = useRef(false);
   const profileReadyRef = useRef<Promise<void> | null>(null);
@@ -629,7 +636,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       messages: messages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .slice(-24)
-        .map((m) => ({ role: m.role, content: m.content })),
+        .map((m) => ({
+          role: m.role,
+          // A quoted highlight travels with the message it was written under.
+          content: m.quote ? `> ${m.quote.text.replace(/\n/g, "\n> ")}\n\n${m.content}` : m.content,
+        })),
       model: s.settings.model,
       autoRoute: s.settings.autoRoute,
       systemPrompt: s.settings.systemPrompt,
@@ -842,7 +853,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deletedChatIdsRef.current.delete(chatId);
 
       const now = Date.now();
-      const userMsg: Message = { id: uid(), role: "user", content: trimmed, attachments, createdAt: now };
+      const quote = pendingQuoteRef.current ?? null;
+      if (quote) setPendingQuote(null);
+      const userMsg: Message = {
+        id: uid(),
+        role: "user",
+        content: trimmed,
+        attachments,
+        quote: quote ?? undefined,
+        createdAt: now,
+      };
       const botMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: now + 1, pending: true };
 
       const seedChat: Chat = existingChat
@@ -890,7 +910,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const history = [...(existingChat?.messages ?? []), userMsg];
       await runTurn(chatId, botMsg.id, buildRequest(history), seedChat);
     },
-    [buildRequest, runTurn],
+    [buildRequest, runTurn, setPendingQuote],
   );
 
   const sendLiveAudio = useCallback(
@@ -1311,6 +1331,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       refreshRepoSkills,
       streaming,
       hydrated,
+      pendingQuote,
+      setQuote: setPendingQuote,
       createChat,
       selectChat,
       deleteChat,
@@ -1343,6 +1365,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       refreshRepoSkills,
       streaming,
       hydrated,
+      pendingQuote,
       createChat,
       selectChat,
       deleteChat,

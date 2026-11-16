@@ -7,34 +7,29 @@ import AccountModal from "./AccountModal";
 import AuthScreen from "./AuthScreen";
 import ChatView from "./ChatView";
 import Logo from "./Logo";
-import RightPanel from "./RightPanel";
-import type { PanelTab } from "./RightPanel";
+import Rail, { initialsFor } from "./Rail";
+import type { Section } from "./Rail";
 import Sidebar from "./Sidebar";
 import { cx } from "@/lib/utils";
 
 function Workspace() {
   const store = useStore();
+  const { user } = useAuth();
+  const [section, setSection] = useState<Section>("chats");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [tab, setTab] = useState<PanelTab>("skills");
   const [accountOpen, setAccountOpen] = useState(false);
-
-  // The context panel is inline on wide screens and a drawer on small ones,
-  // so only open it by default when there is room for it.
-  useEffect(() => {
-    if (window.innerWidth >= 1280) setPanelOpen(true);
-  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        setSection("chats");
         store.createChat();
       }
       if (meta && e.key.toLowerCase() === "b") {
         e.preventDefault();
-        setPanelOpen((p) => !p);
+        setSidebarOpen((open) => !open);
       }
       if (e.key === "Escape") {
         setSidebarOpen(false);
@@ -45,20 +40,36 @@ function Workspace() {
     return () => window.removeEventListener("keydown", onKey);
   }, [store]);
 
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "Account";
+  const initials = initialsFor(displayName);
+
+  const rail = (
+    <Rail
+      section={section}
+      onSection={(next) => {
+        setSection(next);
+        if (typeof window !== "undefined" && window.innerWidth < 1024) setSidebarOpen(true);
+      }}
+      onOpenAccount={() => setAccountOpen(true)}
+      initials={initials}
+      hasPhoto={Boolean(user?.photoURL)}
+      photoUrl={user?.photoURL}
+    />
+  );
+
   return (
     <>
-      {/* desktop sidebar */}
-      <div className="relative z-10 hidden lg:block">
+      {/* desktop: rail + panel, chat to the right */}
+      <div className="relative z-10 hidden lg:flex">
+        {rail}
         <Sidebar
-          onOpenSettings={() => {
-            setTab("settings");
-            setPanelOpen(true);
-          }}
+          section={section}
+          onSection={setSection}
           onOpenAccount={() => setAccountOpen(true)}
         />
       </div>
 
-      {/* mobile sidebar */}
+      {/* mobile / tablet drawer */}
       <div
         className={cx(
           "fixed inset-0 z-40 lg:hidden",
@@ -74,17 +85,15 @@ function Workspace() {
         />
         <div
           className={cx(
-            "absolute inset-y-0 left-0 z-50 transition-transform duration-300",
+            "absolute inset-y-0 left-0 z-50 flex transition-transform duration-300",
             sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
+          {rail}
           <Sidebar
+            section={section}
+            onSection={setSection}
             onClose={() => setSidebarOpen(false)}
-            onOpenSettings={() => {
-              setTab("settings");
-              setPanelOpen(true);
-              setSidebarOpen(false);
-            }}
             onOpenAccount={() => {
               setAccountOpen(true);
               setSidebarOpen(false);
@@ -96,43 +105,11 @@ function Workspace() {
       <div className="relative z-10 flex min-w-0 flex-1">
         <ChatView
           onOpenSidebar={() => setSidebarOpen(true)}
-          onTogglePanel={() => setPanelOpen((p) => !p)}
-          panelOpen={panelOpen}
-          onOpenSettings={() => {
-            setTab("settings");
-            setPanelOpen(true);
-          }}
-          onOpenPanelTab={(t) => {
-            setTab(t);
-            setPanelOpen(true);
+          onOpenSection={(next) => {
+            setSection(next);
+            if (typeof window !== "undefined" && window.innerWidth < 1024) setSidebarOpen(true);
           }}
         />
-
-        {/* desktop panel */}
-        {panelOpen && (
-          <div className="hidden xl:block">
-            <RightPanel tab={tab} onTabChange={setTab} onClose={() => setPanelOpen(false)} />
-          </div>
-        )}
-      </div>
-
-      {/* mobile / tablet panel drawer */}
-      <div className={cx("fixed inset-0 z-40 xl:hidden", panelOpen ? "pointer-events-auto" : "pointer-events-none")}>
-        <div
-          onClick={() => setPanelOpen(false)}
-          className={cx(
-            "absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity",
-            panelOpen ? "opacity-100" : "opacity-0",
-          )}
-        />
-        <div
-          className={cx(
-            "absolute inset-y-0 right-0 z-50 transition-transform duration-300",
-            panelOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          <RightPanel tab={tab} onTabChange={setTab} onClose={() => setPanelOpen(false)} />
-        </div>
       </div>
 
       {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
