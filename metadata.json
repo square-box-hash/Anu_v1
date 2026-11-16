@@ -1,0 +1,10 @@
+{
+  "name": "Anu",
+  "description": "A purple-themed AI chat workspace: multi-model smart routing, streaming chat, live voice and translate, file attachments, skills, MCP connectors, and a harness bridge.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
