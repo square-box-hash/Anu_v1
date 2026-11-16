@@ -47,7 +47,7 @@ export default function Sidebar({
   const activeSection = SECTIONS.find((s) => s.id === section);
 
   return (
-    <aside className="flex h-full w-[272px] shrink-0 flex-col border-r border-line bg-soft/70">
+    <aside className="flex h-full w-[min(calc(100vw-72px),272px)] shrink-0 flex-col border-r border-line bg-soft/70 lg:w-[272px]">
       <div className="flex items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2.5">
           <Logo className="h-8 w-8 drop-shadow-[0_0_10px_rgba(34,211,238,0.35)]" />

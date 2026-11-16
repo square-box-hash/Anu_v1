@@ -308,9 +308,9 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative flex max-h-[86vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-line bg-[#0d0a16] shadow-2xl">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+        <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
           <Cpu className="h-3.5 w-3.5 text-accent-soft" />
-          <h2 className="text-[12.5px] font-semibold text-ink">How this reply was produced</h2>
+          <h2 className="min-w-0 truncate text-[12.5px] font-semibold text-ink">How this reply was produced</h2>
           <span className="rounded border border-line px-1.5 py-[1px] font-mono text-[9px] uppercase tracking-wider text-faint">
             {message.role}
           </span>
@@ -373,14 +373,47 @@ export default function Message({
     }
   };
 
+  const openMenuAt = (x: number, y: number) => {
+    const width = 208;
+    const height = 210;
+    setMenu({
+      x: Math.max(8, Math.min(x, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - height - 8)),
+    });
+  };
+
   const openMenu = (event: React.MouseEvent) => {
     event.preventDefault();
-    const width = 208;
-    const height = 176;
-    setMenu({
-      x: Math.min(event.clientX, window.innerWidth - width - 8),
-      y: Math.min(event.clientY, window.innerHeight - height - 8),
-    });
+    openMenuAt(event.clientX, event.clientY);
+  };
+
+  // Phones have no right-click, so a long press opens the same menu.
+  const pressTimer = React.useRef<number | null>(null);
+  const cancelPress = () => {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+  const startPress = (event: React.TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    cancelPress();
+    pressTimer.current = window.setTimeout(() => {
+      pressTimer.current = null;
+      openMenuAt(touch.clientX, touch.clientY);
+    }, 480);
+  };
+  const touchHandlers = {
+    onTouchStart: startPress,
+    onTouchEnd: cancelPress,
+    onTouchMove: cancelPress,
+    onTouchCancel: cancelPress,
+  };
+
+  /** Touch selection settles after touchend, so read it a tick later. */
+  const endTouch = () => {
+    window.setTimeout(onSelect, 90);
   };
 
   const quoteWhole = () => {
@@ -540,7 +573,7 @@ export default function Message({
 
   if (isUser) {
     return (
-      <div className="flex animate-rise justify-end" onContextMenu={openMenu}>
+      <div className="group flex animate-rise justify-end" onContextMenu={openMenu} {...touchHandlers}>
         <div className="max-w-[min(660px,88%)]">
           {quoteChip}
           {message.attachments?.length ? (
@@ -559,11 +592,12 @@ export default function Message({
           ) : null}
           <div
             onMouseUp={onSelect}
+            onTouchEnd={endTouch}
             className="select-text rounded-2xl border border-white/[0.07] bg-white/[0.07] px-4 py-2.5 text-[14.5px] leading-[1.65] text-ink whitespace-pre-wrap"
           >
             {message.content}
           </div>
-          <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <div className="focus-within:opacity-100 lg:opacity-0 lg:transition-opacity lg:group-hover:opacity-100">
             {actionBar("right")}
           </div>
         </div>
@@ -573,7 +607,7 @@ export default function Message({
   }
 
   return (
-    <div className="group animate-rise" onContextMenu={openMenu}>
+    <div className="group animate-rise" onContextMenu={openMenu} {...touchHandlers}>
       {quoteChip}
 
       {(message.routing || message.model) && (
@@ -635,7 +669,11 @@ export default function Message({
           ))}
         </div>
       ) : (
-        <div className={cx("md-body min-w-0", message.pending && "caret")} onMouseUp={onSelect}>
+        <div
+          className={cx("md-body min-w-0", message.pending && "caret")}
+          onMouseUp={onSelect}
+          onTouchEnd={endTouch}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
