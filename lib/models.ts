@@ -1,5 +1,5 @@
 export const AUTO_MODEL_ID = "auto";
-export const DEFAULT_MODEL = "gemini-4-hydrogen";
+export const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 
 export type ModelModality = "orchestrator" | "text" | "agent" | "live" | "live_translate" | "embedding";
 
@@ -122,11 +122,11 @@ export const BUILTIN_MODELS: ModelEntry[] = [
   {
     id: "gemini-4-hydrogen",
     label: "Gemini 4 Hydrogen",
-    hint: "default · fast frontier planner, STEM & deep reasoning",
+    hint: "fast frontier planner, STEM & deep reasoning",
     role: "planner",
     modality: "text",
     provider: "gemini",
-    badge: "Default",
+    badge: "Planner",
     fallbackId: "gemini-3.8-flash",
     noTemperature: true,
     thinkingSeries: "gemini4",
@@ -177,11 +177,11 @@ export const BUILTIN_MODELS: ModelEntry[] = [
   {
     id: "gemini-3.5-flash-lite",
     label: "Gemini 3.5 Flash Lite",
-    hint: "250K TPM · reading big files, JSON edits & coding",
+    hint: "default · 250K TPM · big files, JSON edits & coding",
     role: "context",
     modality: "text",
     provider: "gemini",
-    badge: "Files/JSON",
+    badge: "Default",
     fallbackId: "gemini-3.1-flash-lite",
     thinkingSeries: "gemini3",
   },
