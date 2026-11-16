@@ -10,6 +10,7 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
   const {
     user,
     hasGoogleProvider,
+    hasGithubProvider,
     hasPasswordProvider,
     setupPassword,
     resendVerification,
@@ -52,7 +53,7 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
       setNotice(
         hasPasswordProvider
           ? "Password updated successfully."
-          : "Password set up! You can now sign in with either Google or email and password.",
+          : "Password set up! You can now sign in with OAuth or email and password.",
       );
     } catch (err) {
       setError(formatAuthError(err));
@@ -121,6 +122,11 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
               {hasGoogleProvider && (
                 <span className="rounded-full border border-line bg-white/[0.04] px-2 py-0.5 text-[10.5px] text-ink">
                   Google
+                </span>
+              )}
+              {hasGithubProvider && (
+                <span className="rounded-full border border-line bg-white/[0.04] px-2 py-0.5 text-[10.5px] text-ink">
+                  GitHub
                 </span>
               )}
               {hasPasswordProvider && (

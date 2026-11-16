@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { Type } from "@google/genai";
+import type { FunctionDeclaration } from "@google/genai";
 
 const SKILLS_DIR = path.join(process.cwd(), "skills");
 
@@ -99,20 +101,19 @@ export async function readSkillFile(slug: string, relative: string): Promise<str
 export const SKILL_TOOL_NAMES = ["list_skills", "load_skill", "read_skill_file"] as const;
 export type SkillToolName = (typeof SKILL_TOOL_NAMES)[number];
 
-export const SKILL_TOOL_DECLARATIONS = [
+export const SKILL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "list_skills",
     description:
       "List the skills available in this workspace with their one-line descriptions. Call this when a task might match a skill.",
-    parameters: { type: "object", properties: {} },
   },
   {
     name: "load_skill",
     description:
       "Load the full instructions of a skill by its name. Use it before doing work the skill covers.",
     parameters: {
-      type: "object",
-      properties: { name: { type: "string", description: "Skill name, as returned by list_skills" } },
+      type: Type.OBJECT,
+      properties: { name: { type: Type.STRING, description: "Skill name, as returned by list_skills" } },
       required: ["name"],
     },
   },
@@ -121,10 +122,10 @@ export const SKILL_TOOL_DECLARATIONS = [
     description:
       "Read a supporting file that belongs to a skill, such as references/checklist.md.",
     parameters: {
-      type: "object",
+      type: Type.OBJECT,
       properties: {
-        skill: { type: "string", description: "Skill name" },
-        path: { type: "string", description: "File path inside the skill, e.g. references/checklist.md" },
+        skill: { type: Type.STRING, description: "Skill name" },
+        path: { type: Type.STRING, description: "File path inside the skill, e.g. references/checklist.md" },
       },
       required: ["skill", "path"],
     },

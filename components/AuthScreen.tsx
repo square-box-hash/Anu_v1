@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { formatAuthError, useAuth } from "@/lib/auth";
 import { cx } from "@/lib/utils";
 import Logo from "./Logo";
-import { ArrowRight, Check, Eye, EyeOff, Lock, Mail, UserIcon } from "./Icons";
+import { ArrowRight, Check, Eye, EyeOff, GitHub, Lock, Mail, UserIcon } from "./Icons";
 import { inputClass } from "./ui";
 
 type Mode = "signin" | "signup" | "reset";
@@ -34,12 +34,12 @@ export default function AuthScreen() {
   const passwordValid = passwordLongEnough && passwordHasLetter && passwordHasNumber;
   const passwordsMatch = password === confirmPassword;
 
-  const handleGithub = async () => {
+  const handleGoogle = async () => {
     setError(null);
     setNotice(null);
-    setBusy("github");
+    setBusy("google");
     try {
-      await signInWithGithub();
+      await signInWithGoogle();
     } catch (err) {
       setError(formatAuthError(err));
     } finally {
@@ -47,12 +47,12 @@ export default function AuthScreen() {
     }
   };
 
-  const handleGoogle = async () => {
+  const handleGithub = async () => {
     setError(null);
     setNotice(null);
-    setBusy("google");
+    setBusy("github");
     try {
-      await signInWithGoogle();
+      await signInWithGithub();
     } catch (err) {
       setError(formatAuthError(err));
     } finally {
@@ -133,10 +133,10 @@ export default function AuthScreen() {
           </h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
             {mode === "signup"
-              ? "Sign up with Google or register your email and set up a password."
+              ? "Sign up with Google, GitHub, or register your email and set up a password."
               : mode === "reset"
                 ? "Enter your email address and we'll send a password reset link."
-                : "Sign in with Google or your email and password to open your workspace."}
+                : "Sign in with Google, GitHub, or your email and password to open your workspace."}
           </p>
         </div>
 
@@ -166,29 +166,29 @@ export default function AuthScreen() {
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => void handleGoogle()}
-                disabled={busy !== null}
-                className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#0b0912]">
-                  G
-                </span>
-                {busy === "google" ? "Connecting to Google…" : "Continue with Google"}
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void handleGoogle()}
+                  disabled={busy !== null}
+                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
+                >
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#0b0912]">
+                    G
+                  </span>
+                  {busy === "google" ? "Connecting to Google…" : "Continue with Google"}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => void handleGithub()}
-                disabled={busy !== null}
-                className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4 fill-current">
-                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-                </svg>
-                {busy === "github" ? "Connecting to GitHub…" : "Continue with GitHub"}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => void handleGithub()}
+                  disabled={busy !== null}
+                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
+                >
+                  <GitHub className="h-4 w-4 text-ink" />
+                  {busy === "github" ? "Connecting to GitHub…" : "Continue with GitHub"}
+                </button>
+              </div>
 
               <div className="my-4 flex items-center gap-3">
                 <div className="h-px flex-1 bg-line" />

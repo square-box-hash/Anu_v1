@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
-import { MODELS } from "@/lib/types";
+import { MODELS, findModel } from "@/lib/types";
 import { cx } from "@/lib/utils";
 import Logo from "./Logo";
 import Message from "./Message";
@@ -12,10 +12,10 @@ import { ArrowRight, Bolt, Chevron, Layers, Menu, PanelRight, Sparkles, Terminal
 import { Pill, StatusDot } from "./ui";
 
 const SUGGESTIONS = [
-  { icon: <Sparkles className="h-3.5 w-3.5" />, title: "Plan a product launch", body: "Draft a 6-week launch plan with owners and risks." },
-  { icon: <Terminal className="h-3.5 w-3.5" />, title: "Review this repo", body: "Attach a diff and ask for a security-focused review." },
-  { icon: <Layers className="h-3.5 w-3.5" />, title: "Summarise a document", body: "Drop a PDF and get a one-page brief with action items." },
-  { icon: <Bolt className="h-3.5 w-3.5" />, title: "Build a data story", body: "Turn a CSV into findings, charts and next steps." },
+  { icon: <Sparkles className="h-3.5 w-3.5" />, title: "Solve chemistry doubts", body: "Explain SN1 vs SN2 reaction mechanisms with energy diagrams and stereochemistry." },
+  { icon: <Terminal className="h-3.5 w-3.5" />, title: "Architect & delegate code", body: "Design a multi-module TypeScript queue and write focused unit tests for edge cases." },
+  { icon: <Layers className="h-3.5 w-3.5" />, title: "Extract structured JSON", body: "Drop a large log or document and compress key facts into clean typed JSON." },
+  { icon: <Bolt className="h-3.5 w-3.5" />, title: "Casual quick chat", body: "Brainstorm weekend project ideas I can build and share with 20–30 friends." },
 ];
 
 export default function ChatView({
@@ -36,7 +36,7 @@ export default function ChatView({
   const bottomRef = useRef<HTMLDivElement>(null);
   const messages = store.activeChat?.messages ?? [];
   const lastContent = messages[messages.length - 1]?.content ?? "";
-  const model = MODELS.find((m) => m.id === store.settings.model) ?? MODELS[0];
+  const model = findModel(store.settings.model, store.settings.customModels) ?? MODELS[1] ?? MODELS[0];
   const activeSkills = store.skills.filter((s) => s.enabled);
 
   useEffect(() => {
@@ -62,7 +62,9 @@ export default function ChatView({
             {store.activeChat?.title ?? "New chat"}
           </h1>
           <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-faint">
-            <span className="truncate">{model.label}</span>
+            <span className="truncate">
+              {store.settings.autoRoute && model.id !== "auto" ? `Auto (${model.label})` : model.label}
+            </span>
             <span className="h-2.5 w-px bg-line" />
             <span className="truncate">{messages.length} messages</span>
           </div>

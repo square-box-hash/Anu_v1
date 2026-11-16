@@ -22,6 +22,7 @@ export interface AuthContextValue {
   loading: boolean;
   hasPasswordProvider: boolean;
   hasGoogleProvider: boolean;
+  hasGithubProvider: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithGithub: () => Promise<void>;
   signUpWithEmail: (input: { email: string; password: string; displayName?: string }) => Promise<void>;
@@ -53,15 +54,19 @@ export function formatAuthError(error: unknown): string {
     case "auth/too-many-requests":
       return "Too many attempts. Please wait a moment and try again.";
     case "auth/popup-closed-by-user":
-      return "Google sign-in popup was closed before finishing.";
+      return "Sign-in popup was closed before finishing.";
     case "auth/popup-blocked":
       return "Popup was blocked by your browser. Allow popups for this site and try again.";
     case "auth/account-exists-with-different-credential":
-      return "An account already exists with this email using another sign-in method.";
+      return "An account already exists with this email using another sign-in method (try Google or email/password).";
     case "auth/requires-recent-login":
       return "For security, please sign out and sign back in before updating your password.";
     case "auth/operation-not-allowed":
       return "Email/Password sign-in is not enabled yet in your Firebase project. Enable it in Firebase Console → Authentication → Sign-in method.";
+    case "auth/unauthorized-domain": {
+      const host = typeof window !== "undefined" ? window.location.hostname : "this domain";
+      return `The domain "${host}" is not authorized for Firebase Auth yet. Add it in Firebase Console → Authentication → Settings → Authorized domains.`;
+    }
     case "auth/network-request-failed":
       return "Network error while contacting authentication service. Check your connection.";
     default:
@@ -153,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const providers = user?.providerData ?? [];
   const hasPasswordProvider = providers.some((p) => p.providerId === "password");
   const hasGoogleProvider = providers.some((p) => p.providerId === "google.com");
+  const hasGithubProvider = providers.some((p) => p.providerId === "github.com");
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -160,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       hasPasswordProvider,
       hasGoogleProvider,
+      hasGithubProvider,
       signInWithGoogle,
       signInWithGithub,
       signUpWithEmail,
@@ -175,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       hasPasswordProvider,
       hasGoogleProvider,
+      hasGithubProvider,
       signInWithGoogle,
       signInWithGithub,
       signUpWithEmail,

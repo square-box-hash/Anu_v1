@@ -1,24 +1,25 @@
 "use client";
 
 import React, { useState } from "react";
+import { TRANSLATE_LANGUAGES, getAllModels } from "@/lib/models";
 import { useStore } from "@/lib/store";
-import { MODELS } from "@/lib/types";
-import type { McpTransport } from "@/lib/types";
+import type { CustomModelConfig, McpTransport, ModelRole, RoleAssignments } from "@/lib/types";
 import { cx } from "@/lib/utils";
 import {
   Bolt,
   Check,
-  Chevron,
+  Cpu,
+  Download,
   Layers,
   Link,
   Plus,
   Refresh,
   Settings as SettingsIcon,
+  Sliders,
   Terminal,
   Trash,
   X,
 } from "./Icons";
-import SkillDialog from "./SkillDialog";
 import { Field, SectionTitle, StatusDot, Toggle, inputClass } from "./ui";
 
 export type PanelTab = "skills" | "connectors" | "harness" | "settings";
@@ -42,21 +43,33 @@ function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
-  const [openSkill, setOpenSkill] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Record<string, string>>({});
   const enabledCount = store.repoSkills.filter((skill) => store.enabledRepoSkills.includes(skill.slug)).length;
 
-  const dialogSkill = store.repoSkills.find((skill) => skill.slug === openSkill) ?? null;
+  const togglePreview = async (slug: string) => {
+    if (preview[slug]) {
+      setPreview((current) => {
+        const next = { ...current };
+        delete next[slug];
+        return next;
+      });
+      return;
+    }
+    setPreview((current) => ({ ...current, [slug]: "Loading…" }));
+    try {
+      const res = await fetch(`/api/skills?slug=${encodeURIComponent(slug)}`);
+      const data = (await res.json()) as { ok?: boolean; body?: string; error?: string };
+      setPreview((current) => ({
+        ...current,
+        [slug]: data.ok ? data.body ?? "" : `Could not load this skill: ${data.error ?? "unknown error"}`,
+      }));
+    } catch {
+      setPreview((current) => ({ ...current, [slug]: "Could not load this skill." }));
+    }
+  };
 
   return (
     <div className="space-y-5">
-      {dialogSkill ? (
-        <SkillDialog
-          skill={dialogSkill}
-          enabled={store.enabledRepoSkills.includes(dialogSkill.slug)}
-          onToggle={() => store.toggleRepoSkill(dialogSkill.slug)}
-          onClose={() => setOpenSkill(null)}
-        />
-      ) : null}
       <section className="space-y-2.5">
         <div className="flex items-center gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">Workspace</h3>
@@ -87,23 +100,13 @@ function SkillsTab() {
           <div className="space-y-2">
             {store.repoSkills.map((skill) => {
               const enabled = store.enabledRepoSkills.includes(skill.slug);
+              const open = Boolean(preview[skill.slug]);
               return (
                 <div
                   key={skill.slug}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setOpenSkill(skill.slug)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setOpenSkill(skill.slug);
-                    }
-                  }}
                   className={cx(
-                    "cursor-pointer rounded-xl border transition-all",
-                    enabled
-                      ? "border-accent/35 bg-accent/[0.07] hover:border-accent/60"
-                      : "border-line bg-white/[0.02] hover:border-linestrong hover:bg-white/[0.04]",
+                    "rounded-xl border transition-colors",
+                    enabled ? "border-accent/35 bg-accent/[0.07]" : "border-line bg-white/[0.02] hover:border-linestrong",
                   )}
                 >
                   <div className="flex items-start gap-2 p-2.5">
@@ -119,9 +122,7 @@ function SkillsTab() {
                       </div>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-faint">{skill.description}</p>
                     </div>
-                    <span onClick={(event) => event.stopPropagation()}>
-                      <Toggle checked={enabled} onChange={() => store.toggleRepoSkill(skill.slug)} label={skill.name} />
-                    </span>
+                    <Toggle checked={enabled} onChange={() => store.toggleRepoSkill(skill.slug)} label={skill.name} />
                   </div>
 
                   <div className="flex items-center gap-1.5 border-t border-line/70 px-2.5 py-1.5">
@@ -136,12 +137,19 @@ function SkillsTab() {
                     {skill.files.length > 2 ? (
                       <span className="font-mono text-[9px] text-faint">+{skill.files.length - 2}</span>
                     ) : null}
-                    <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-faint transition-colors group-hover:text-accent-pale">
-                      Open
-                      <Chevron className="h-2.5 w-2.5 -rotate-90" />
-                    </span>
+                    <button
+                      onClick={() => void togglePreview(skill.slug)}
+                      className="ml-auto rounded px-1.5 py-[2px] text-[10px] text-faint transition-colors hover:bg-white/5 hover:text-accent-pale"
+                    >
+                      {open ? "Hide" : "Preview"}
+                    </button>
                   </div>
 
+                  {open ? (
+                    <pre className="max-h-[240px] overflow-auto border-t border-line/70 px-2.5 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-ink/75">
+                      {preview[skill.slug]}
+                    </pre>
+                  ) : null}
                 </div>
               );
             })}
@@ -533,37 +541,371 @@ function HarnessTab() {
   );
 }
 
+const ROLE_LABELS: { key: keyof RoleAssignments; label: string; hint: string }[] = [
+  { key: "router", label: "Step 1 · Router", hint: "triage & tool routing" },
+  { key: "context", label: "Step 2 · Context", hint: "large files & JSON" },
+  { key: "planner", label: "Step 3 · Planner", hint: "STEM & architecture" },
+  { key: "heavy", label: "Step 3 · Heavy Fallback", hint: "medium-heavy synthesis" },
+  { key: "longHorizon", label: "Step 3 · Long Horizon", hint: "deep coding agent" },
+  { key: "casualChat", label: "Direct Chat", hint: "conversational turns" },
+  { key: "subagentFast", label: "Step 4 · Fast Subagent", hint: "tests, lint, quick loops" },
+  { key: "subagentQuality", label: "Step 4 · Quality Subagent", hint: "code sub-edits & docs" },
+  { key: "specialist", label: "Selective Specialist", hint: "targeted non-chat tasks" },
+];
+
 function SettingsTab() {
   const store = useStore();
-  const active = MODELS.find((m) => m.id === store.settings.model) ?? MODELS[0];
+  const [exported, setExported] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+
+  const [cId, setCId] = useState("");
+  const [cLabel, setCLabel] = useState("");
+  const [cProvider, setCProvider] = useState<"gemini" | "openai-compatible">("gemini");
+  const [cRole, setCRole] = useState<ModelRole>("general");
+  const [cEndpoint, setCEndpoint] = useState("");
+  const [cToken, setCToken] = useState("");
+
+  const allModels = getAllModels(store.settings.customModels);
+  const active = allModels.find((m) => m.id === store.settings.model) ?? allModels[1] ?? allModels[0];
+  const chat = store.activeChat;
+  const orch = store.settings.orchestration;
+
+  const exportCurrentChat = () => {
+    if (!chat) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      model: store.settings.model,
+      chat: {
+        id: chat.id,
+        title: chat.title,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        messages: chat.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          ...(m.model ? { model: m.model } : {}),
+          ...(m.routing ? { routing: m.routing } : {}),
+          ...(m.thinking ? { thinking: m.thinking } : {}),
+          ...(m.attachments?.length ? { attachments: m.attachments } : {}),
+          ...(m.toolCalls?.length ? { toolCalls: m.toolCalls } : {}),
+          ...(m.notices?.length ? { notices: m.notices } : {}),
+          createdAt: m.createdAt,
+          ...(m.error ? { error: m.error } : {}),
+        })),
+      },
+    };
+
+    const safeSlug =
+      chat.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48) || chat.id.slice(0, 8);
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const filename = `anu-${safeSlug}-${dateStamp}.json`;
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+
+    setExported(true);
+    setTimeout(() => setExported(false), 2000);
+  };
+
+  const handleAddCustom = () => {
+    if (!cId.trim()) return;
+    if (cProvider === "openai-compatible" && !cEndpoint.trim()) return;
+    const entry: CustomModelConfig = {
+      id: cId.trim(),
+      label: cLabel.trim() || cId.trim(),
+      provider: cProvider,
+      role: cRole,
+      ...(cProvider === "openai-compatible"
+        ? { endpointUrl: cEndpoint.trim(), ...(cToken.trim() ? { customToken: cToken.trim() } : {}) }
+        : {}),
+    };
+    store.addCustomModel(entry);
+    setCId("");
+    setCLabel("");
+    setCEndpoint("");
+    setCToken("");
+    setCustomOpen(false);
+  };
 
   return (
     <div className="space-y-4">
       <div>
-        <SectionTitle>Model</SectionTitle>
-        <div className="mt-1.5 space-y-1.5">
-          {MODELS.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => store.updateSettings({ model: m.id })}
-              className={cx(
-                "flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-colors",
-                m.id === store.settings.model
-                  ? "border-accent/40 bg-accent/10"
-                  : "border-line bg-white/[0.02] hover:border-linestrong",
-              )}
-            >
-              <span>
-                <span className="block text-[12px] text-ink">{m.label}</span>
-                <span className="block font-mono text-[9.5px] text-faint">{m.id}</span>
-              </span>
-              {m.id === store.settings.model && <Check className="h-3.5 w-3.5 text-accent-soft" />}
-            </button>
-          ))}
+        <SectionTitle
+          right={<span className="font-mono text-[9.5px] text-faint">{allModels.length} models</span>}
+        >
+          Model
+        </SectionTitle>
+        <div className="mt-1.5 max-h-[250px] space-y-1.5 overflow-y-auto pr-0.5">
+          {allModels.map((m) => {
+            const isCustom = store.settings.customModels.some((cm) => cm.id === m.id);
+            return (
+              <div
+                key={m.id}
+                className={cx(
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 transition-colors",
+                  m.id === store.settings.model
+                    ? "border-accent/40 bg-accent/10"
+                    : "border-line bg-white/[0.02] hover:border-linestrong",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    store.updateSettings({
+                      model: m.id,
+                      autoRoute: m.id === "auto" ? true : store.settings.autoRoute,
+                    })
+                  }
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-[12px] text-ink">{m.label}</span>
+                    {m.badge && (
+                      <span className="shrink-0 rounded border border-line bg-black/30 px-1 py-[0.5px] font-mono text-[8.5px] uppercase tracking-wider text-accent-pale">
+                        {m.badge}
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate font-mono text-[9.5px] text-faint">{m.id}</span>
+                </button>
+                {isCustom && (
+                  <button
+                    type="button"
+                    onClick={() => store.removeCustomModel(m.id)}
+                    className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
+                    aria-label={`Remove ${m.label}`}
+                  >
+                    <Trash className="h-3 w-3" />
+                  </button>
+                )}
+                {m.id === store.settings.model && <Check className="h-3.5 w-3.5 shrink-0 text-accent-soft" />}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <Field label="Temperature" hint={store.settings.temperature.toFixed(1)}>
+      <div className="space-y-2.5 rounded-xl border border-line bg-white/[0.02] p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Cpu className="h-3.5 w-3.5 text-accent-soft" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Orchestration</span>
+          </div>
+          <span className="rounded border border-line bg-black/30 px-1.5 py-[1px] font-mono text-[9px] text-muted">
+            4-step
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="block text-[12px] text-ink">Smart auto-route</span>
+              <span className="block text-[10px] text-faint">Triage every prompt via Decisions 1</span>
+            </div>
+            <Toggle
+              checked={store.settings.autoRoute}
+              onChange={(v) => store.updateSettings({ autoRoute: v })}
+              label="Smart auto-route"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="block text-[12px] text-ink">Focus on first prompt</span>
+              <span className="block text-[10px] text-faint">Anchor domain (e.g. chemistry doubts)</span>
+            </div>
+            <Toggle
+              checked={orch.enableFirstPromptFocus}
+              onChange={(v) => store.updateOrchestration({ enableFirstPromptFocus: v })}
+              label="Focus on first prompt"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="block text-[12px] text-ink">Step 2 context compression</span>
+              <span className="block text-[10px] text-faint">Digest big files with 3.5 Flash Lite</span>
+            </div>
+            <Toggle
+              checked={orch.enableContextCompression}
+              onChange={(v) => store.updateOrchestration({ enableContextCompression: v })}
+              label="Context compression"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="block text-[12px] text-ink">Step 4 parallel subagents</span>
+              <span className="block text-[10px] text-faint">Delegate grunt work to Gemma 4 26B/31B</span>
+            </div>
+            <Toggle
+              checked={orch.enableSubagents}
+              onChange={(v) => store.updateOrchestration({ enableSubagents: v })}
+              label="Parallel subagents"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-line/70 pt-2 text-[10.5px]">
+          <span className="text-faint">Live Translate target</span>
+          <select
+            value={orch.translateTargetLanguage}
+            onChange={(e) => store.updateOrchestration({ translateTargetLanguage: e.target.value })}
+            className="rounded border border-line bg-black/40 px-2 py-0.5 text-[11px] text-ink outline-none"
+          >
+            {TRANSLATE_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-[#120e1e]">
+                {l.label} ({l.code})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-line/70 pt-2 text-[10.5px]">
+          <span className="text-faint">Memory ({orch.roles.memory})</span>
+          <span className="rounded border border-line bg-black/30 px-1.5 py-[1px] font-mono text-[9.5px] text-emerald-300/80">
+            standby · ready
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setRolesOpen((v) => !v)}
+          className="flex w-full items-center justify-between rounded-lg border border-line bg-black/25 px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-ink"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Sliders className="h-3 w-3 text-accent-soft" />
+            Customize role models
+          </span>
+          <span className="font-mono text-[9.5px] text-faint">{rolesOpen ? "hide" : "edit"}</span>
+        </button>
+
+        {rolesOpen && (
+          <div className="space-y-2 border-t border-line/70 pt-2">
+            {ROLE_LABELS.map((item) => (
+              <label key={item.key} className="block space-y-1">
+                <span className="flex items-center justify-between text-[10.5px]">
+                  <span className="text-ink/85">{item.label}</span>
+                  <span className="text-[9.5px] text-faint">{item.hint}</span>
+                </span>
+                <select
+                  value={orch.roles[item.key]}
+                  onChange={(e) =>
+                    store.updateOrchestration({
+                      roles: { ...orch.roles, [item.key]: e.target.value },
+                    })
+                  }
+                  className={cx(inputClass, "py-1 text-[11px]")}
+                >
+                  {allModels
+                    .filter((m) => m.id !== "auto" && m.modality !== "embedding")
+                    .map((m) => (
+                      <option key={m.id} value={m.id} className="bg-[#120e1e]">
+                        {m.label} ({m.id})
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-line bg-black/25 p-2.5">
+        <div className="flex items-center justify-between">
+          <SectionTitle>Custom Model / API</SectionTitle>
+          <button
+            type="button"
+            onClick={() => setCustomOpen((v) => !v)}
+            className="rounded px-1.5 py-0.5 text-[10.5px] text-accent-soft hover:bg-white/5"
+          >
+            {customOpen ? "Cancel" : "+ Add model"}
+          </button>
+        </div>
+        <p className="text-[10.5px] leading-relaxed text-faint">
+          Register custom model IDs or OpenAI-compatible HTTP endpoints (Ollama, vLLM, OpenRouter) to experiment with.
+        </p>
+
+        {customOpen && (
+          <div className="space-y-1.5 pt-1">
+            <select
+              value={cProvider}
+              onChange={(e) => setCProvider(e.target.value as "gemini" | "openai-compatible")}
+              className={inputClass}
+            >
+              <option value="gemini" className="bg-[#120e1e]">Server Gemini / Gemma model ID</option>
+              <option value="openai-compatible" className="bg-[#120e1e]">Custom OpenAI-compatible HTTP endpoint</option>
+            </select>
+            <input
+              value={cId}
+              onChange={(e) => setCId(e.target.value)}
+              placeholder={cProvider === "gemini" ? "Model ID (e.g. gemma-4-31b-it)" : "Model ID (e.g. qwen2.5-coder:32b)"}
+              className={inputClass}
+            />
+            <input
+              value={cLabel}
+              onChange={(e) => setCLabel(e.target.value)}
+              placeholder="Display label (optional)"
+              className={inputClass}
+            />
+            <select
+              value={cRole}
+              onChange={(e) => setCRole(e.target.value as ModelRole)}
+              className={inputClass}
+            >
+              <option value="general" className="bg-[#120e1e]">Role: General</option>
+              <option value="planner" className="bg-[#120e1e]">Role: Planner</option>
+              <option value="subagent_quality" className="bg-[#120e1e]">Role: Subagent / Chat</option>
+              <option value="context" className="bg-[#120e1e]">Role: Context / JSON</option>
+              <option value="specialist" className="bg-[#120e1e]">Role: Specialist</option>
+            </select>
+            {cProvider === "openai-compatible" && (
+              <>
+                <input
+                  value={cEndpoint}
+                  onChange={(e) => setCEndpoint(e.target.value)}
+                  placeholder="Base URL (e.g. http://localhost:11434/v1)"
+                  className={cx(inputClass, "font-mono text-[11px]")}
+                />
+                <input
+                  type="password"
+                  value={cToken}
+                  onChange={(e) => setCToken(e.target.value)}
+                  placeholder="Optional custom endpoint token"
+                  className={cx(inputClass, "font-mono text-[11px]")}
+                />
+              </>
+            )}
+            <button
+              type="button"
+              onClick={handleAddCustom}
+              disabled={!cId.trim() || (cProvider === "openai-compatible" && !cEndpoint.trim())}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25 disabled:opacity-40"
+            >
+              <Plus className="h-3 w-3" />
+              Save custom model
+            </button>
+          </div>
+        )}
+      </div>
+
+      <Field
+        label="Temperature"
+        hint={active.noTemperature ? "auto (Gemini 4)" : store.settings.temperature.toFixed(1)}
+      >
         <input
           type="range"
           min={0}
@@ -579,7 +921,7 @@ function SettingsTab() {
         <textarea
           value={store.settings.systemPrompt}
           onChange={(e) => store.updateSettings({ systemPrompt: e.target.value })}
-          rows={5}
+          rows={4}
           className={cx(inputClass, "resize-none leading-relaxed")}
         />
       </Field>
@@ -592,12 +934,14 @@ function SettingsTab() {
             <span className="truncate text-accent-pale">{active.id}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-faint">route</span>
-            <span className="text-muted">/api/chat</span>
+            <span className="text-faint">routing</span>
+            <span className="text-muted">
+              {store.settings.autoRoute || active.id === "auto" ? "4-step smart" : "direct"}
+            </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-faint">transport</span>
-            <span className="text-muted">streamed</span>
+            <span className="text-faint">routes</span>
+            <span className="text-muted">/api/chat · /api/live</span>
           </div>
         </div>
         <p className="mt-2 text-[10.5px] leading-relaxed text-faint">
@@ -606,13 +950,26 @@ function SettingsTab() {
         </p>
       </div>
 
-      <button
-        onClick={store.clearAll}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 py-2 text-[11.5px] font-medium text-rose-200 transition-colors hover:bg-rose-500/20"
-      >
-        <X className="h-3.5 w-3.5" />
-        Clear all chats
-      </button>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={exportCurrentChat}
+          disabled={!chat}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-2 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-40"
+          title={chat ? `Export "${chat.title}" as JSON` : "Open or start a chat to export"}
+        >
+          {exported ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+          {exported ? "Exported JSON" : chat ? `Export current chat (${chat.messages.length})` : "Export current chat"}
+        </button>
+
+        <button
+          onClick={store.clearAll}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 py-2 text-[11.5px] font-medium text-rose-200 transition-colors hover:bg-rose-500/20"
+        >
+          <X className="h-3.5 w-3.5" />
+          Clear all chats
+        </button>
+      </div>
 
       <p className="pb-2 text-center font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/60">
         anu · mit licensed

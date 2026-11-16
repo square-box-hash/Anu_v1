@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^3.3.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "firebase": "^13.3.0",
     "katex": "^0.19.1",

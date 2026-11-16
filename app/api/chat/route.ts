@@ -1,15 +1,30 @@
 import { NextResponse } from "next/server";
-import { streamGemini, toContents, toFunctionDeclarations } from "@/lib/providers/gemini";
+import {
+  SUBAGENT_TOOL_DECLARATION,
+  SUBAGENT_TOOL_NAME,
+  compressContext,
+  isApiKeyInvalidError,
+  runAntigravityInteraction,
+  runSubagentTask,
+  streamGemini,
+  streamOpenAiCompatible,
+  toContents,
+  toFunctionDeclarations,
+  triagePrompt,
+} from "@/lib/providers/gemini";
 import type { Content, Part } from "@/lib/providers/gemini";
 import { callTool, listAllTools } from "@/lib/mcp";
-import { SKILL_TOOL_DECLARATIONS, SKILL_TOOL_NAMES, listSkills, runSkillTool } from "@/lib/skills";
 import type { McpServerConfig } from "@/lib/mcp";
-import type { ChatRequest } from "@/lib/types";
+import { MEMORY_CONFIG } from "@/lib/memory";
+import { AUTO_MODEL_ID, DEFAULT_MODEL, DEFAULT_ORCHESTRATION_CONFIG, findModel } from "@/lib/models";
+import { SKILL_TOOL_DECLARATIONS, SKILL_TOOL_NAMES, listSkills, runSkillTool } from "@/lib/skills";
+import type { ChatRequest, RoutingInfo } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Event =
+  | { type: "meta"; route: RoutingInfo }
   | { type: "text"; text: string }
   | { type: "thought"; text: string }
   | { type: "notice"; text: string }
@@ -19,9 +34,29 @@ type Event =
 
 const isSkillTool = (name: string) => (SKILL_TOOL_NAMES as readonly string[]).includes(name);
 
-function systemPromptFor(body: ChatRequest, skills: { name: string; description: string }[]): string {
+function systemPromptFor(
+  body: ChatRequest,
+  skills: { name: string; description: string }[],
+  contextBrief?: string | null,
+  routeNote?: string,
+): string {
   const blocks: string[] = [];
   if (body.systemPrompt?.trim()) blocks.push(body.systemPrompt.trim());
+
+  if (routeNote) blocks.push(routeNote);
+
+  if (body.attachments?.length) {
+    const fileSummaries = body.attachments.map((a) =>
+      a.textContent?.trim()
+        ? `Attached file "${a.name}" (${a.type}, ${a.size} bytes):\n\`\`\`\n${a.textContent.slice(0, 18000)}\n\`\`\``
+        : `Attached file "${a.name}" (${a.type}, ${a.size} bytes)`,
+    );
+    blocks.push(fileSummaries.join("\n\n"));
+  }
+
+  if (contextBrief) {
+    blocks.push(`Compressed context summary (prepared by Step 2 Context Lite):\n${contextBrief}`);
+  }
 
   if (skills.length) {
     blocks.push(
@@ -56,11 +91,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "messages[] is required" }, { status: 400 });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  const orchestration = body.orchestration ?? DEFAULT_ORCHESTRATION_CONFIG;
+  const requestedModel = body.model || DEFAULT_MODEL;
+  const customEntry = findModel(requestedModel, body.customModels);
+  const isCustomHttp = customEntry?.provider === "openai-compatible";
+
+  if (!isCustomHttp && !process.env.GEMINI_API_KEY) {
     return NextResponse.json(
       {
-        error:
-          "GEMINI_API_KEY is not set on the server. Add it to .env.local (or your Vercel env vars) and redeploy.",
+        error: "GEMINI_API_KEY is not set on the server. Check your server environment configuration.",
       },
       { status: 500 },
     );
@@ -84,10 +123,166 @@ export async function POST(request: Request) {
       const send = (event: Event) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
 
       try {
-        const { tools, errors } = servers.length
-          ? await listAllTools(servers)
-          : { tools: [], errors: [] };
+        // Custom HTTP (OpenAI-compatible) endpoint branch — lets users experiment with local/custom model APIs
+        if (isCustomHttp && customEntry) {
+          send({
+            type: "meta",
+            route: {
+              requestedModel,
+              selectedModel: customEntry.id,
+              category: "custom_endpoint",
+              complexity: "custom",
+              reason: `Direct request to custom endpoint (${customEntry.endpointUrl})`,
+              steps: ["Direct Custom Endpoint"],
+            },
+          });
 
+          const sys = systemPromptFor(body, []);
+          for await (const event of streamOpenAiCompatible({
+            model: { id: customEntry.id, endpointUrl: customEntry.endpointUrl, customToken: customEntry.customToken },
+            messages: body.messages,
+            systemPrompt: sys,
+            temperature: body.temperature,
+          })) {
+            if (event.type === "text" || event.type === "thought") send(event);
+          }
+          return;
+        }
+
+        // Determine whether to run Smart Orchestration or direct fixed model
+        const shouldAutoRoute = requestedModel === AUTO_MODEL_ID || Boolean(body.autoRoute);
+        let activeModel = requestedModel === AUTO_MODEL_ID ? orchestration.roles.planner || DEFAULT_MODEL : requestedModel;
+        const pipelineSteps: string[] = [];
+
+        let category = "direct";
+        let complexity = "standard";
+        let routeReason = `Selected model: ${activeModel}`;
+        let routerUsed: string | undefined;
+        let needsCompression = false;
+        let allowSubagents = Boolean(orchestration.enableSubagents && body.harness?.enabled);
+
+        if (shouldAutoRoute) {
+          const decision = await triagePrompt({
+            messages: body.messages,
+            attachments: body.attachments,
+            orchestration,
+          });
+          category = decision.category;
+          complexity = decision.complexity;
+          activeModel = decision.selectedModel;
+          routerUsed = decision.routerUsed;
+          routeReason = decision.reason;
+          needsCompression = decision.needsContextCompression;
+          allowSubagents = Boolean(orchestration.enableSubagents && (decision.suggestSubagents || body.harness?.enabled));
+          pipelineSteps.push(`Step 1 Triage (${decision.routerUsed}) → ${decision.category}`);
+        } else {
+          pipelineSteps.push(`Direct Model (${activeModel})`);
+        }
+
+        // Step 2 — Context compression (Gemini 3.5 Flash Lite) & staged Memory check (Gemini Embedding 2)
+        let compressedBrief: string | null = null;
+        if (orchestration.enableContextCompression && (needsCompression || (body.attachments?.some((a) => (a.textContent?.length ?? 0) > 10_000) ?? false))) {
+          const compressed = await compressContext({
+            messages: body.messages,
+            attachments: body.attachments,
+            orchestration,
+          });
+          if (compressed) {
+            compressedBrief = compressed.summary;
+            pipelineSteps.push(`Step 2 Context (${compressed.modelUsed})`);
+            send({ type: "notice", text: `Step 2 · Context brief prepared with ${compressed.modelUsed}.` });
+          }
+        }
+        if (orchestration.embeddingMemoryStandby && activeModel === MEMORY_CONFIG.model) {
+          send({
+            type: "meta",
+            route: {
+              requestedModel,
+              selectedModel: MEMORY_CONFIG.model,
+              category: "memory_standby",
+              complexity: "staged",
+              reason: "Gemini Embedding 2 is configured and on standby for upcoming vector memory retrieval.",
+              steps: ["Staged Embedding Memory"],
+            },
+          });
+          send({
+            type: "text",
+            text: `**${MEMORY_CONFIG.model}** is registered and configured in \`lib/memory.ts\` for multimodal agent memory embeddings, and is currently kept on standby without active vector indexing.\n\nSwitch to **Smart Auto-Route** or **Gemini 4 Hydrogen** to continue chatting, or inspect orchestration settings in **Config**.`,
+          });
+          return;
+        }
+
+        // Voice / Live-Translate informational fallback when user submits plain text while those models are active
+        if (activeModel === "gemini-3.8-live" || activeModel === "gemini-3.5-live-translate-preview") {
+          const isTranslate = activeModel === "gemini-3.5-live-translate-preview";
+          send({
+            type: "notice",
+            text: `${activeModel} is optimized for real-time audio (use the microphone button in the composer). Answering your text turn via ${orchestration.roles.planner}.`,
+          });
+          if (isTranslate) {
+            body = {
+              ...body,
+              systemPrompt: `${body.systemPrompt ? `${body.systemPrompt}\n\n` : ""}Translate the user's message accurately into language code "${orchestration.translateTargetLanguage}".`,
+            };
+          }
+          activeModel = isTranslate ? orchestration.roles.contextFallback : orchestration.roles.planner;
+        }
+
+        send({
+          type: "meta",
+          route: {
+            requestedModel,
+            selectedModel: activeModel,
+            routerModel: routerUsed,
+            category,
+            complexity,
+            reason: routeReason,
+            steps: [...pipelineSteps, `Step 3 Execution (${activeModel})`],
+          },
+        });
+
+        // Step 3 (Long-horizon managed sandbox) — Antigravity via Interactions API with free-tier fallback
+        if (activeModel === "antigravity-preview-09-2026") {
+          const lastUser = [...body.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+          try {
+            send({ type: "notice", text: "Step 3 · Invoking Antigravity managed coding agent via Interactions API…" });
+            const res = await runAntigravityInteraction({
+              prompt: lastUser,
+              systemPrompt: systemPromptFor(body, [], compressedBrief),
+              agentModel: orchestration.roles.planner || "gemini-4-hydrogen",
+            });
+            if (res.thoughts) send({ type: "thought", text: res.thoughts });
+            if (res.text) {
+              send({ type: "text", text: res.text });
+              return;
+            }
+          } catch (err) {
+            if (!isApiKeyInvalidError(err)) {
+              const fallbackModel = orchestration.roles.planner || DEFAULT_MODEL;
+              send({
+                type: "notice",
+                text: `Antigravity (${activeModel}) unavailable in this tier/environment; fell back seamlessly to ${fallbackModel}.`,
+              });
+              activeModel = fallbackModel;
+              send({
+                type: "meta",
+                route: {
+                  requestedModel,
+                  selectedModel: activeModel,
+                  routerModel: routerUsed,
+                  category,
+                  complexity,
+                  reason: `${routeReason} (fallback → ${activeModel})`,
+                  steps: [...pipelineSteps, `Step 3 Fallback (${activeModel})`],
+                },
+              });
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        const { tools, errors } = servers.length ? await listAllTools(servers) : { tools: [], errors: [] };
         for (const failure of errors) {
           send({ type: "notice", text: `MCP server "${failure.server}" could not be reached: ${failure.message}` });
         }
@@ -101,26 +296,52 @@ export async function POST(request: Request) {
         const declarations = [
           ...toFunctionDeclarations(tools),
           ...(activeSkills.length ? SKILL_TOOL_DECLARATIONS : []),
+          ...(allowSubagents ? [SUBAGENT_TOOL_DECLARATION] : []),
         ];
-        if (declarations.length) {
+
+        if (declarations.length && !/^gemma-/i.test(activeModel)) {
           send({ type: "notice", text: `Tools available: ${declarations.map((d) => d.name).join(", ")}` });
         }
 
         const contents: Content[] = toContents(body.messages);
-        const systemPrompt = systemPromptFor(body, activeSkills);
+        const orchestrationInstruction = allowSubagents
+          ? `Orchestration active (${category}): For complex coding/multi-part tasks, output a concise plan and call "${SUBAGENT_TOOL_NAME}" to delegate focused sub-edits, unit tests, docstrings, or JSON extraction in parallel to Gemma 4 (26B/31B) or Gemini 3.5 Flash Lite before synthesizing your final answer.`
+          : undefined;
+
+        const systemPrompt = systemPromptFor(body, activeSkills, compressedBrief, orchestrationInstruction);
 
         for (let step = 0; step < maxSteps; step++) {
-          const calls: { name: string; args: Record<string, unknown> }[] = [];
+          const calls: { id?: string; name: string; args: Record<string, unknown> }[] = [];
+          const rawCallParts: Part[] = [];
 
           for await (const event of streamGemini({
-            model: body.model,
+            model: activeModel,
             contents,
             systemPrompt,
             temperature: body.temperature,
             declarations,
+            customModels: body.customModels,
+            onNotice: (text) => send({ type: "notice", text }),
+            onFallbackModel: (resolved) => {
+              activeModel = resolved;
+              send({
+                type: "meta",
+                route: {
+                  requestedModel,
+                  selectedModel: resolved,
+                  routerModel: routerUsed,
+                  category,
+                  complexity,
+                  reason: `${routeReason} (fallback → ${resolved})`,
+                  steps: [...pipelineSteps, `Fallback (${resolved})`],
+                },
+              });
+            },
           })) {
-            if (event.type === "functionCall") {
-              calls.push({ name: event.name, args: event.args });
+            if (event.type === "modelPart") {
+              rawCallParts.push(event.part);
+            } else if (event.type === "functionCall") {
+              calls.push({ id: event.id, name: event.name, args: event.args });
             } else {
               send(event);
             }
@@ -128,14 +349,62 @@ export async function POST(request: Request) {
 
           if (!calls.length) break;
 
-          const modelParts: Part[] = calls.map((call) => ({
-            functionCall: { name: call.name, args: call.args },
-          }));
-          contents.push({ role: "model", parts: modelParts });
+          contents.push({
+            role: "model",
+            parts: rawCallParts.length
+              ? rawCallParts
+              : calls.map((call) => ({ functionCall: { name: call.name, args: call.args } })),
+          });
 
           const responseParts: Part[] = [];
           for (const [index, call] of calls.entries()) {
-            const id = `call_${step}_${index}`;
+            const id = call.id || `call_${step}_${index}`;
+
+            if (call.name === SUBAGENT_TOOL_NAME) {
+              const rawTasks = Array.isArray((call.args as { tasks?: unknown }).tasks)
+                ? ((call.args as { tasks: Array<{ title?: string; worker?: string; instruction?: string }> }).tasks).slice(0, 4)
+                : [];
+              send({
+                type: "tool_call",
+                id,
+                server: "subagents",
+                name: `${SUBAGENT_TOOL_NAME} (${rawTasks.length})`,
+                args: call.args,
+              });
+
+              const settled = await Promise.all(
+                rawTasks.map(async (task) => {
+                  const res = await runSubagentTask({
+                    worker: task.worker || "fast",
+                    title: task.title || "Subtask",
+                    instruction: task.instruction || "",
+                    roles: orchestration.roles,
+                  });
+                  return { title: task.title || "Subtask", worker: task.worker || "fast", ...res };
+                }),
+              );
+
+              const combinedContent = settled
+                .map((s) => `### ${s.title} [${s.modelUsed}]\n${s.output}`)
+                .join("\n\n");
+
+              send({
+                type: "tool_result",
+                id,
+                ok: settled.length > 0,
+                content: combinedContent.slice(0, 4000),
+              });
+
+              responseParts.push({
+                functionResponse: {
+                  id: call.id,
+                  name: call.name,
+                  response: { results: settled },
+                },
+              });
+              continue;
+            }
+
             const skillCall = isSkillTool(call.name);
             const owner = tools.find((tool) => tool.qualified === call.name);
             send({
@@ -159,6 +428,7 @@ export async function POST(request: Request) {
 
             responseParts.push({
               functionResponse: {
+                id: call.id,
                 name: call.name,
                 response: result.ok
                   ? { result: result.content.slice(0, 8000) }
@@ -170,7 +440,20 @@ export async function POST(request: Request) {
           contents.push({ role: "user", parts: responseParts });
         }
       } catch (error) {
-        send({ type: "error", text: error instanceof Error ? error.message : "Unknown provider error" });
+        let msg = error instanceof Error ? error.message : "Unknown provider error";
+        for (let depth = 0; depth < 3; depth++) {
+          const trimmed = msg.trim();
+          if (!trimmed.startsWith("{")) break;
+          try {
+            const parsed = JSON.parse(trimmed) as { error?: { message?: string }; message?: string };
+            const inner = parsed?.error?.message ?? parsed?.message;
+            if (typeof inner === "string" && inner.trim()) msg = inner.trim();
+            else break;
+          } catch {
+            break;
+          }
+        }
+        send({ type: "error", text: msg.slice(0, 400) });
       } finally {
         controller.close();
       }

@@ -25,15 +25,22 @@ import {
 import type { User } from "firebase/auth";
 import { useAuth } from "./auth";
 import { OperationType, db, handleFirestoreError } from "./firebase";
-import { DEFAULT_MODEL } from "./types";
+import {
+  DEFAULT_MODEL,
+  DEFAULT_ORCHESTRATION_CONFIG,
+  DEFAULT_ROLE_ASSIGNMENTS,
+} from "./models";
 import type {
   Attachment,
   Chat,
   ChatRequest,
+  CustomModelConfig,
   HarnessConfig,
   McpServer,
   Message,
+  OrchestrationConfig,
   RepoSkill,
+  RoutingInfo,
   Settings,
   Skill,
   ToolCall,
@@ -78,7 +85,30 @@ function defaults(): Persisted {
       temperature: 0.7,
       systemPrompt:
         "You are a precise, friendly assistant. Ask a clarifying question when the request is ambiguous, otherwise answer directly.",
+      autoRoute: false,
+      orchestration: {
+        ...DEFAULT_ORCHESTRATION_CONFIG,
+        roles: { ...DEFAULT_ROLE_ASSIGNMENTS },
+      },
+      customModels: [],
     },
+  };
+}
+
+function mergeSettings(raw?: Partial<Settings>): Settings {
+  const base = defaults().settings;
+  return {
+    ...base,
+    ...raw,
+    orchestration: {
+      ...base.orchestration,
+      ...(raw?.orchestration ?? {}),
+      roles: {
+        ...base.orchestration.roles,
+        ...(raw?.orchestration?.roles ?? {}),
+      },
+    },
+    customModels: Array.isArray(raw?.customModels) ? raw.customModels : [],
   };
 }
 
@@ -107,8 +137,10 @@ function sanitizeChatForFirestore(chat: Chat, userId: string) {
         id: m.id,
         role: m.role,
         content: m.content,
+        model: m.model,
+        routing: m.routing,
         thinking: m.thinking,
-        attachments: m.attachments,
+        attachments: m.attachments?.map(({ id, name, size, type }) => ({ id, name, size, type })),
         toolCalls: m.toolCalls,
         notices: m.notices,
         createdAt: m.createdAt,
@@ -195,6 +227,11 @@ interface StoreValue extends Persisted {
   renameChat: (id: string, title: string) => void;
   clearAll: () => void;
   send: (text: string, attachments?: Attachment[]) => Promise<void>;
+  sendLiveAudio: (
+    audioBase64: string,
+    mode: "voice" | "translate",
+    onAudioChunk: (base64Pcm24k: string) => void,
+  ) => Promise<void>;
   regenerate: () => Promise<void>;
   stop: () => void;
   toggleSkill: (id: string) => void;
@@ -208,6 +245,9 @@ interface StoreValue extends Persisted {
   updateHarness: (patch: Partial<HarnessConfig>) => void;
   testHarness: () => void;
   updateSettings: (patch: Partial<Settings>) => void;
+  updateOrchestration: (patch: Partial<OrchestrationConfig>) => void;
+  addCustomModel: (model: CustomModelConfig) => void;
+  removeCustomModel: (id: string) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -225,6 +265,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const abortRef = useRef(false);
   const profileReadyRef = useRef<Promise<void> | null>(null);
   const knownCloudIdsRef = useRef<Set<string>>(new Set());
+  const deletedChatIdsRef = useRef<Set<string>>(new Set());
 
   stateRef.current = state;
 
@@ -232,12 +273,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setHydrated(false);
     knownCloudIdsRef.current = new Set();
+    deletedChatIdsRef.current = new Set();
     let initial = defaults();
     try {
       const raw = localStorage.getItem(storageKeyFor(userId));
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Persisted>;
-        initial = { ...initial, ...parsed };
+        initial = {
+          ...initial,
+          ...parsed,
+          settings: mergeSettings(parsed.settings),
+        };
       }
     } catch {
       /* ignore corrupt storage */
@@ -287,7 +333,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             updatedAt: Number(data.clientUpdatedAt ?? Date.now()),
           });
         });
+        const prevKnownIds = knownCloudIdsRef.current;
         knownCloudIdsRef.current = ids;
+        for (const deletedId of [...deletedChatIdsRef.current]) {
+          if (!ids.has(deletedId)) deletedChatIdsRef.current.delete(deletedId);
+        }
 
         setState((prev) => {
           // Preserve any chat currently streaming locally so live tokens are never overwritten
@@ -295,11 +345,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             prev.chats.filter((c) => c.messages.some((m) => m.pending)).map((c) => [c.id, c]),
           );
           const mergedMap = new Map<string, Chat>();
-          for (const c of cloudChats) mergedMap.set(c.id, c);
+          for (const c of cloudChats) {
+            if (!deletedChatIdsRef.current.has(c.id)) {
+              mergedMap.set(c.id, c);
+            }
+          }
           for (const c of prev.chats) {
+            if (deletedChatIdsRef.current.has(c.id)) continue;
             if (pendingMap.has(c.id)) {
               mergedMap.set(c.id, pendingMap.get(c.id)!);
-            } else if (!mergedMap.has(c.id) && c.messages.length === 0) {
+              continue;
+            }
+            const existingCloud = mergedMap.get(c.id);
+            if (existingCloud) {
+              if (c.updatedAt > existingCloud.updatedAt || c.messages.length > existingCloud.messages.length) {
+                mergedMap.set(c.id, c);
+              }
+            } else if (!prevKnownIds.has(c.id)) {
+              // Preserve local chats not yet committed to cloud (including failed turns or offline chats)
               mergedMap.set(c.id, c);
             }
           }
@@ -415,11 +478,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteChat = useCallback(
     (id: string) => {
+      deletedChatIdsRef.current.add(id);
+      const wasInCloud = knownCloudIdsRef.current.has(id);
+      knownCloudIdsRef.current.delete(id);
       setState((s) => {
         const chats = s.chats.filter((c) => c.id !== id);
         return { ...s, chats, activeId: s.activeId === id ? chats[0]?.id ?? null : s.activeId };
       });
-      if (user && canCloudSync && knownCloudIdsRef.current.has(id)) {
+      if (user && canCloudSync && wasInCloud) {
         const chatPath = `users/${user.uid}/chats/${id}`;
         deleteDoc(doc(db, "users", user.uid, "chats", id)).catch((error) => {
           handleFirestoreError(error, OperationType.DELETE, chatPath);
@@ -453,6 +519,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const clearAll = useCallback(() => {
     const idsToDelete = [...knownCloudIdsRef.current];
+    for (const id of idsToDelete) deletedChatIdsRef.current.add(id);
+    knownCloudIdsRef.current.clear();
     setState((s) => ({
       ...defaults(),
       skills: s.skills,
@@ -480,11 +548,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .slice(-24)
         .map((m) => ({ role: m.role, content: m.content })),
       model: s.settings.model,
+      autoRoute: s.settings.autoRoute,
       systemPrompt: s.settings.systemPrompt,
       temperature: s.settings.temperature,
       attachments: messages
         .flatMap((m) => m.attachments ?? [])
-        .map((a) => ({ name: a.name, type: a.type, size: a.size })),
+        .map((a) => ({ name: a.name, type: a.type, size: a.size, textContent: a.textContent })),
       repoSkills: s.enabledRepoSkills,
       skills: s.skills
         .filter((k) => k.enabled)
@@ -503,18 +572,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         agentMode: s.harness.agentMode,
         maxSteps: s.harness.maxSteps,
       },
+      orchestration: s.settings.orchestration,
+      customModels: s.settings.customModels,
     };
   }, []);
 
   const runTurn = useCallback(
-    async (chatId: string, botId: string, payload: ChatRequest) => {
+    async (chatId: string, botId: string, payload: ChatRequest, seedChat?: Chat) => {
       abortRef.current = false;
       setStreaming(true);
 
       let acc = "";
       let think = "";
+      let hadError = false;
+      let latestModel: string | undefined;
+      let latestRouting: RoutingInfo | undefined;
       const calls: ToolCall[] = [];
       const notices: string[] = [];
+
+      const buildFinalizedChat = (finalPatch: Partial<Message>): Chat | undefined => {
+        const base = stateRef.current.chats.find((c) => c.id === chatId) ?? seedChat;
+        if (!base) return undefined;
+        return {
+          ...base,
+          updatedAt: Date.now(),
+          messages: base.messages.map((m) => (m.id === botId ? { ...m, ...finalPatch } : m)),
+        };
+      };
+
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -548,6 +633,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
 
           switch (event.type) {
+            case "meta": {
+              const route = (event as unknown as { route?: RoutingInfo }).route;
+              if (route) {
+                latestModel = route.selectedModel;
+                latestRouting = route;
+                patchMessage(chatId, botId, { model: route.selectedModel, routing: route });
+              }
+              return;
+            }
             case "tool_call": {
               const call = event as unknown as { id: string; server: string; name: string; args: unknown };
               calls.push({ id: call.id, server: call.server, name: call.name, args: call.args, pending: true });
@@ -591,8 +685,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             acc += text;
             patchMessage(chatId, botId, { content: acc });
           } else if (event.type === "error") {
+            hadError = true;
             acc += `${acc ? "\n\n" : ""}**Request failed.** ${text}`;
-            patchMessage(chatId, botId, { content: acc });
+            patchMessage(chatId, botId, { content: acc, error: true });
           }
         };
 
@@ -612,29 +707,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (buffer.trim()) handleLine(buffer);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Something went wrong.";
-        patchMessage(chatId, botId, {
+        const errorPatch: Partial<Message> = {
           content: acc ? `${acc}\n\n**Request failed.** ${message}` : `**Request failed.** ${message}`,
           thinking: think || undefined,
+          model: latestModel,
+          routing: latestRouting,
+          toolCalls: calls.length ? [...calls] : undefined,
+          notices: notices.length ? [...notices] : undefined,
           pending: false,
           error: true,
-        });
+        };
+        patchMessage(chatId, botId, errorPatch);
         setStreaming(false);
-        const latestChat = stateRef.current.chats.find((c) => c.id === chatId);
+        const latestChat = buildFinalizedChat(errorPatch);
         if (latestChat) void syncChatToCloud(latestChat).catch(() => {});
         return;
       }
 
       const thinking = think.trim() ? think : undefined;
-      if (abortRef.current) {
-        patchMessage(chatId, botId, { content: `${acc}\n\n_Stopped._`, thinking, pending: false });
-      } else if (!acc.trim()) {
-        patchMessage(chatId, botId, { content: "_The model returned an empty response._", thinking, pending: false });
-      } else {
-        patchMessage(chatId, botId, { content: acc, thinking, pending: false });
-      }
+      const finalPatch: Partial<Message> = {
+        content: abortRef.current
+          ? `${acc}\n\n_Stopped._`
+          : !acc.trim()
+            ? "_The model returned an empty response._"
+            : acc,
+        thinking,
+        model: latestModel,
+        routing: latestRouting,
+        toolCalls: calls.length ? [...calls] : undefined,
+        notices: notices.length ? [...notices] : undefined,
+        pending: false,
+        ...(hadError ? { error: true } : {}),
+      };
+      patchMessage(chatId, botId, finalPatch);
       setStreaming(false);
 
-      const latestChat = stateRef.current.chats.find((c) => c.id === chatId);
+      const latestChat = buildFinalizedChat(finalPatch);
       if (latestChat) void syncChatToCloud(latestChat).catch(() => {});
     },
     [patchMessage, syncChatToCloud],
@@ -646,22 +754,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!trimmed && attachments.length === 0) return;
 
       const cur = stateRef.current;
-      const chatId = cur.activeId ?? uid();
+      const existingChat = cur.activeId ? cur.chats.find((c) => c.id === cur.activeId) : undefined;
+      const chatId = existingChat?.id ?? cur.activeId ?? uid();
+      deletedChatIdsRef.current.delete(chatId);
+
       const now = Date.now();
       const userMsg: Message = { id: uid(), role: "user", content: trimmed, attachments, createdAt: now };
       const botMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: now + 1, pending: true };
 
-      setState((s) => {
-        const existing = s.chats.find((c) => c.id === chatId);
-        if (!existing) {
-          const chat: Chat = {
+      const seedChat: Chat = existingChat
+        ? {
+            ...existingChat,
+            title:
+              existingChat.messages.length === 0
+                ? titleFrom(trimmed || attachments[0]?.name || "New chat")
+                : existingChat.title,
+            messages: [...existingChat.messages, userMsg, botMsg],
+            updatedAt: now,
+          }
+        : {
             id: chatId,
             title: titleFrom(trimmed || attachments[0]?.name || "New chat"),
             messages: [userMsg, botMsg],
             createdAt: now,
             updatedAt: now,
           };
-          return { ...s, chats: [chat, ...s.chats], activeId: chatId };
+
+      setState((s) => {
+        const existing = s.chats.find((c) => c.id === chatId);
+        if (!existing) {
+          return { ...s, chats: [seedChat, ...s.chats], activeId: chatId };
         }
         return {
           ...s,
@@ -682,11 +804,167 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      const chat = stateRef.current.chats.find((c) => c.id === chatId);
-      const history = [...(chat?.messages ?? []), userMsg];
-      await runTurn(chatId, botMsg.id, buildRequest(history));
+      const history = [...(existingChat?.messages ?? []), userMsg];
+      await runTurn(chatId, botMsg.id, buildRequest(history), seedChat);
     },
     [buildRequest, runTurn],
+  );
+
+  const sendLiveAudio = useCallback(
+    async (
+      audioBase64: string,
+      mode: "voice" | "translate",
+      onAudioChunk: (base64Pcm24k: string) => void,
+    ) => {
+      if (!audioBase64) return;
+      const cur = stateRef.current;
+      const chatId = cur.activeId ?? uid();
+      const now = Date.now();
+      const targetLang = cur.settings.orchestration.translateTargetLanguage || "es";
+      const liveModel = mode === "translate" ? "gemini-3.5-live-translate-preview" : "gemini-3.8-live";
+
+      const userMsg: Message = {
+        id: uid(),
+        role: "user",
+        content: mode === "translate" ? `[Voice message for translation → ${targetLang}]` : "[Voice message]",
+        createdAt: now,
+      };
+      const botMsg: Message = {
+        id: uid(),
+        role: "assistant",
+        model: liveModel,
+        routing: {
+          requestedModel: liveModel,
+          selectedModel: liveModel,
+          category: mode === "translate" ? "live_translation" : "live_voice",
+          complexity: "realtime",
+          reason: mode === "translate" ? `Live speech translation → ${targetLang}` : "Live audio session",
+          steps: [`Live API (${liveModel})`],
+        },
+        content: "",
+        createdAt: now + 1,
+        pending: true,
+      };
+
+      const existingChat = cur.activeId ? cur.chats.find((c) => c.id === cur.activeId) : undefined;
+      const seedChat: Chat = existingChat
+        ? { ...existingChat, messages: [...existingChat.messages, userMsg, botMsg], updatedAt: now }
+        : {
+            id: chatId,
+            title: mode === "translate" ? `Live Translate (${targetLang})` : "Voice Session",
+            messages: [userMsg, botMsg],
+            createdAt: now,
+            updatedAt: now,
+          };
+
+      deletedChatIdsRef.current.delete(chatId);
+      setState((s) => {
+        const existing = s.chats.find((c) => c.id === chatId);
+        if (!existing) {
+          return { ...s, chats: [seedChat, ...s.chats], activeId: chatId };
+        }
+        return {
+          ...s,
+          activeId: chatId,
+          chats: s.chats.map((c) =>
+            c.id === chatId
+              ? { ...c, messages: [...c.messages, userMsg, botMsg], updatedAt: now }
+              : c,
+          ),
+        };
+      });
+
+      setStreaming(true);
+      let inputTranscript = "";
+      let outputText = "";
+      let finalLivePatch: Partial<Message> = { content: "_Audio response played._", pending: false };
+
+      try {
+        const res = await fetch("/api/live", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode,
+            audioBase64,
+            targetLanguageCode: targetLang,
+            systemPrompt: cur.settings.systemPrompt,
+          }),
+        });
+        if (!res.ok || !res.body) {
+          throw new Error(`Live request failed (${res.status})`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        const handleLiveLine = (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          try {
+            const evt = JSON.parse(trimmed) as {
+              type?: string;
+              text?: string;
+              data?: string;
+            };
+            if (evt.type === "audio" && evt.data) {
+              onAudioChunk(evt.data);
+            } else if (evt.type === "input_transcript" && evt.text) {
+              inputTranscript += evt.text;
+              patchMessage(chatId, userMsg.id, { content: inputTranscript.trim() });
+            } else if ((evt.type === "output_transcript" || evt.type === "text") && evt.text) {
+              outputText += evt.text;
+              patchMessage(chatId, botMsg.id, { content: outputText.trim(), pending: true });
+            } else if (evt.type === "error" && evt.text) {
+              outputText += `${outputText ? "\n\n" : ""}**Live error:** ${evt.text}`;
+              patchMessage(chatId, botMsg.id, { content: outputText, error: true });
+            }
+          } catch {
+            /* ignore partial line */
+          }
+        };
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) handleLiveLine(line);
+        }
+        buffer += decoder.decode();
+        if (buffer.trim()) handleLiveLine(buffer);
+
+        finalLivePatch = {
+          content: outputText.trim() || "_Audio response played._",
+          pending: false,
+        };
+        patchMessage(chatId, botMsg.id, finalLivePatch);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Live voice request failed.";
+        finalLivePatch = {
+          content: `**Live audio error.** ${msg}`,
+          pending: false,
+          error: true,
+        };
+        patchMessage(chatId, botMsg.id, finalLivePatch);
+      } finally {
+        setStreaming(false);
+        const baseChat = stateRef.current.chats.find((c) => c.id === chatId) ?? seedChat;
+        const finalizedChat: Chat = {
+          ...baseChat,
+          updatedAt: Date.now(),
+          messages: baseChat.messages.map((m) => {
+            if (m.id === userMsg.id && inputTranscript.trim()) {
+              return { ...m, content: inputTranscript.trim() };
+            }
+            if (m.id === botMsg.id) return { ...m, ...finalLivePatch };
+            return m;
+          }),
+        };
+        void syncChatToCloud(finalizedChat).catch(() => {});
+      }
+    },
+    [patchMessage, syncChatToCloud],
   );
 
   const regenerate = useCallback(async () => {
@@ -699,16 +977,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (lastUserIndex < 0) return;
 
     const kept = chat.messages.slice(0, lastUserIndex + 1);
-    const botMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now(), pending: true };
+    const now = Date.now();
+    const botMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: now, pending: true };
+    const seedChat: Chat = { ...chat, messages: [...kept, botMsg], updatedAt: now };
 
     setState((s) => ({
       ...s,
       chats: s.chats.map((c) =>
-        c.id === chat.id ? { ...c, messages: [...kept, botMsg], updatedAt: Date.now() } : c,
+        c.id === chat.id ? { ...c, messages: [...kept, botMsg], updatedAt: now } : c,
       ),
     }));
 
-    await runTurn(chat.id, botMsg.id, buildRequest(kept));
+    await runTurn(chat.id, botMsg.id, buildRequest(kept), seedChat);
   }, [buildRequest, runTurn]);
 
   const stop = useCallback(() => {
@@ -893,6 +1173,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
   }, []);
 
+  const updateOrchestration = useCallback((patch: Partial<OrchestrationConfig>) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        ...s.settings,
+        orchestration: {
+          ...s.settings.orchestration,
+          ...patch,
+          roles: {
+            ...s.settings.orchestration.roles,
+            ...(patch.roles ?? {}),
+          },
+        },
+      },
+    }));
+  }, []);
+
+  const addCustomModel = useCallback((model: CustomModelConfig) => {
+    const cleanId = model.id.trim();
+    if (!cleanId) return;
+    setState((s) => {
+      const next = s.settings.customModels.filter((m) => m.id !== cleanId);
+      next.push({ ...model, id: cleanId });
+      return {
+        ...s,
+        settings: { ...s.settings, customModels: next, model: cleanId },
+      };
+    });
+  }, []);
+
+  const removeCustomModel = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        ...s.settings,
+        model: s.settings.model === id ? DEFAULT_MODEL : s.settings.model,
+        customModels: s.settings.customModels.filter((m) => m.id !== id),
+      },
+    }));
+  }, []);
+
   const activeChat = useMemo(
     () => state.chats.find((c) => c.id === state.activeId) ?? null,
     [state.chats, state.activeId],
@@ -913,6 +1234,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameChat,
       clearAll,
       send,
+      sendLiveAudio,
       regenerate,
       stop,
       toggleSkill,
@@ -926,6 +1248,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateHarness,
       testHarness,
       updateSettings,
+      updateOrchestration,
+      addCustomModel,
+      removeCustomModel,
     }),
     [
       state,
@@ -941,6 +1266,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameChat,
       clearAll,
       send,
+      sendLiveAudio,
       regenerate,
       stop,
       toggleSkill,
@@ -954,6 +1280,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateHarness,
       testHarness,
       updateSettings,
+      updateOrchestration,
+      addCustomModel,
+      removeCustomModel,
     ],
   );
 
