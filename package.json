@@ -5,13 +5,14 @@
   "license": "MIT",
   "description": "A purple-themed AI chat workspace UI built with Next.js and TypeScript.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "firebase": "^13.3.0",
     "katex": "^0.19.1",
     "next": "^15.1.0",
     "react": "^19.0.0",

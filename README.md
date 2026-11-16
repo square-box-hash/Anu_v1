@@ -57,9 +57,6 @@ Only `name` and `description` are put in front of the model. The full body is fe
 is actually needed. Toggle skills in the **Skills** tab; the enabled ones are the only ones exposed for
 that chat. The tab also has *Rescan skills folder* after you add files.
 
-Clicking a skill opens it full-size: rendered markdown, one tab per supporting file, and the enable
-toggle, so you can read exactly what the model will load.
-
 `skills/analysis-validation` ships as a working example.
 
 Inline instructions (name + one line) still exist for throwaway rules — they go into the system prompt

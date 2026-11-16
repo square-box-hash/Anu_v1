@@ -9,6 +9,22 @@ import React, {
   useRef,
   useState,
 } from "react";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+} from "firebase/firestore";
+import type { User } from "firebase/auth";
+import { useAuth } from "./auth";
+import { OperationType, db, handleFirestoreError } from "./firebase";
 import { DEFAULT_MODEL } from "./types";
 import type {
   Attachment,
@@ -24,7 +40,11 @@ import type {
 } from "./types";
 import { titleFrom, uid } from "./utils";
 
-const STORAGE_KEY = "nebula.chat.v2";
+const STORAGE_PREFIX = "nebula.chat.v2";
+
+function storageKeyFor(userId: string | undefined): string {
+  return userId ? `${STORAGE_PREFIX}.${userId}` : `${STORAGE_PREFIX}.anon`;
+}
 
 interface Persisted {
   chats: Chat[];
@@ -62,6 +82,106 @@ function defaults(): Persisted {
   };
 }
 
+/** Recursively strip undefined properties so Firestore writes never fail on optional keys. */
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = stripUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+function sanitizeChatForFirestore(chat: Chat, userId: string) {
+  const safeTitle = (chat.title.trim() || "New chat").slice(0, 200);
+  const safeMessages = chat.messages
+    .filter((m) => !m.pending)
+    .slice(-500)
+    .map((m) =>
+      stripUndefined({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        thinking: m.thinking,
+        attachments: m.attachments,
+        toolCalls: m.toolCalls,
+        notices: m.notices,
+        createdAt: m.createdAt,
+        error: m.error,
+      }),
+    );
+
+  return {
+    id: chat.id,
+    userId,
+    title: safeTitle,
+    messages: safeMessages,
+    clientCreatedAt: chat.createdAt || Date.now(),
+    clientUpdatedAt: chat.updatedAt || Date.now(),
+  };
+}
+
+async function ensureUserDocs(user: User): Promise<void> {
+  const userPath = `users/${user.uid}`;
+  const userRef = doc(db, "users", user.uid);
+  const displayName = (user.displayName || user.email?.split("@")[0] || "User").slice(0, 120);
+  const photoUrl = user.photoURL ? user.photoURL.slice(0, 500) : undefined;
+
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      const payload: Record<string, unknown> = {
+        uid: user.uid,
+        displayName,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      if (photoUrl) payload.photoUrl = photoUrl;
+      await setDoc(userRef, payload);
+    } else {
+      const existingData = snap.data();
+      if (existingData.displayName !== displayName || (photoUrl && existingData.photoUrl !== photoUrl)) {
+        const updatePayload: Record<string, unknown> = {
+          displayName,
+          updatedAt: serverTimestamp(),
+        };
+        if (photoUrl) updatePayload.photoUrl = photoUrl;
+        await updateDoc(userRef, updatePayload);
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, userPath);
+  }
+
+  if (user.email) {
+    const privatePath = `users/${user.uid}/private/info`;
+    const privateRef = doc(db, "users", user.uid, "private", "info");
+    try {
+      const privSnap = await getDoc(privateRef);
+      const email = user.email.slice(0, 320);
+      if (!privSnap.exists()) {
+        await setDoc(privateRef, {
+          uid: user.uid,
+          email,
+          updatedAt: serverTimestamp(),
+        });
+      } else if (privSnap.data().email !== email) {
+        await updateDoc(privateRef, {
+          email,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, privatePath);
+    }
+  }
+}
+
 interface StoreValue extends Persisted {
   activeChat: Chat | null;
   repoSkills: RepoSkill[];
@@ -93,36 +213,152 @@ interface StoreValue extends Persisted {
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const userId = user?.uid;
+  const canCloudSync = Boolean(user && user.emailVerified);
+
   const [state, setState] = useState<Persisted>(defaults);
   const [streaming, setStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [repoSkills, setRepoSkills] = useState<RepoSkill[]>([]);
   const stateRef = useRef(state);
   const abortRef = useRef(false);
+  const profileReadyRef = useRef<Promise<void> | null>(null);
+  const knownCloudIdsRef = useRef<Set<string>>(new Set());
 
   stateRef.current = state;
 
+  // Load user-scoped localStorage state when active user changes
   useEffect(() => {
+    setHydrated(false);
+    knownCloudIdsRef.current = new Set();
+    let initial = defaults();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKeyFor(userId));
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Persisted>;
-        setState((prev) => ({ ...prev, ...parsed }));
+        initial = { ...initial, ...parsed };
       }
     } catch {
       /* ignore corrupt storage */
     }
+    setState(initial);
     setHydrated(true);
-  }, []);
+  }, [userId]);
 
+  // Persist state to user-scoped localStorage
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(storageKeyFor(userId), JSON.stringify(state));
     } catch {
       /* storage full or blocked */
     }
-  }, [state, hydrated]);
+  }, [state, hydrated, userId]);
+
+  // Sync verified user's profile and chats with Firestore
+  useEffect(() => {
+    if (!user || !canCloudSync) {
+      profileReadyRef.current = null;
+      return;
+    }
+
+    const ready = ensureUserDocs(user).catch((err) => {
+      console.error("Failed to initialize user profile in Firestore:", err);
+    });
+    profileReadyRef.current = ready;
+
+    const chatsPath = `users/${user.uid}/chats`;
+    const q = query(collection(db, "users", user.uid, "chats"), where("userId", "==", user.uid));
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const cloudChats: Chat[] = [];
+        const ids = new Set<string>();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          ids.add(docSnap.id);
+          cloudChats.push({
+            id: String(data.id ?? docSnap.id),
+            title: String(data.title ?? "New chat"),
+            messages: Array.isArray(data.messages) ? (data.messages as Message[]) : [],
+            createdAt: Number(data.clientCreatedAt ?? Date.now()),
+            updatedAt: Number(data.clientUpdatedAt ?? Date.now()),
+          });
+        });
+        knownCloudIdsRef.current = ids;
+
+        setState((prev) => {
+          // Preserve any chat currently streaming locally so live tokens are never overwritten
+          const pendingMap = new Map(
+            prev.chats.filter((c) => c.messages.some((m) => m.pending)).map((c) => [c.id, c]),
+          );
+          const mergedMap = new Map<string, Chat>();
+          for (const c of cloudChats) mergedMap.set(c.id, c);
+          for (const c of prev.chats) {
+            if (pendingMap.has(c.id)) {
+              mergedMap.set(c.id, pendingMap.get(c.id)!);
+            } else if (!mergedMap.has(c.id) && c.messages.length === 0) {
+              mergedMap.set(c.id, c);
+            }
+          }
+          const merged = Array.from(mergedMap.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+          const nextActiveId =
+            prev.activeId && merged.some((c) => c.id === prev.activeId) ? prev.activeId : merged[0]?.id ?? null;
+          return { ...prev, chats: merged, activeId: nextActiveId };
+        });
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, chatsPath);
+      },
+    );
+
+    return () => unsub();
+  }, [user, canCloudSync]);
+
+  const syncChatToCloud = useCallback(
+    async (chat: Chat) => {
+      if (!user || !canCloudSync) return;
+      if (profileReadyRef.current) await profileReadyRef.current;
+
+      const chatPath = `users/${user.uid}/chats/${chat.id}`;
+      const chatRef = doc(db, "users", user.uid, "chats", chat.id);
+      const sanitized = sanitizeChatForFirestore(chat, user.uid);
+
+      try {
+        if (knownCloudIdsRef.current.has(chat.id)) {
+          await updateDoc(chatRef, {
+            title: sanitized.title,
+            messages: sanitized.messages,
+            clientUpdatedAt: sanitized.clientUpdatedAt,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          const existingSnap = await getDoc(chatRef);
+          if (existingSnap.exists()) {
+            knownCloudIdsRef.current.add(chat.id);
+            await updateDoc(chatRef, {
+              title: sanitized.title,
+              messages: sanitized.messages,
+              clientUpdatedAt: sanitized.clientUpdatedAt,
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            await setDoc(chatRef, {
+              ...sanitized,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+            knownCloudIdsRef.current.add(chat.id);
+          }
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, chatPath);
+      }
+    },
+    [user, canCloudSync],
+  );
 
   const refreshRepoSkills = useCallback(async () => {
     try {
@@ -177,21 +413,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const selectChat = useCallback((id: string) => setState((s) => ({ ...s, activeId: id })), []);
 
-  const deleteChat = useCallback((id: string) => {
-    setState((s) => {
-      const chats = s.chats.filter((c) => c.id !== id);
-      return { ...s, chats, activeId: s.activeId === id ? chats[0]?.id ?? null : s.activeId };
-    });
-  }, []);
+  const deleteChat = useCallback(
+    (id: string) => {
+      setState((s) => {
+        const chats = s.chats.filter((c) => c.id !== id);
+        return { ...s, chats, activeId: s.activeId === id ? chats[0]?.id ?? null : s.activeId };
+      });
+      if (user && canCloudSync && knownCloudIdsRef.current.has(id)) {
+        const chatPath = `users/${user.uid}/chats/${id}`;
+        deleteDoc(doc(db, "users", user.uid, "chats", id)).catch((error) => {
+          handleFirestoreError(error, OperationType.DELETE, chatPath);
+        });
+      }
+    },
+    [user, canCloudSync],
+  );
 
-  const renameChat = useCallback((id: string, title: string) => {
-    setState((s) => ({
-      ...s,
-      chats: s.chats.map((c) => (c.id === id ? { ...c, title: title.trim() || c.title } : c)),
-    }));
-  }, []);
+  const renameChat = useCallback(
+    (id: string, title: string) => {
+      const nextTitle = title.trim();
+      if (!nextTitle) return;
+      let updatedChat: Chat | null = null;
+      setState((s) => ({
+        ...s,
+        chats: s.chats.map((c) => {
+          if (c.id === id) {
+            updatedChat = { ...c, title: nextTitle, updatedAt: Date.now() };
+            return updatedChat;
+          }
+          return c;
+        }),
+      }));
+      if (updatedChat && user && canCloudSync && knownCloudIdsRef.current.has(id)) {
+        void syncChatToCloud(updatedChat);
+      }
+    },
+    [user, canCloudSync, syncChatToCloud],
+  );
 
   const clearAll = useCallback(() => {
+    const idsToDelete = [...knownCloudIdsRef.current];
     setState((s) => ({
       ...defaults(),
       skills: s.skills,
@@ -200,7 +461,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       harness: s.harness,
       settings: s.settings,
     }));
-  }, []);
+    if (user && canCloudSync && idsToDelete.length > 0) {
+      const batch = writeBatch(db);
+      for (const id of idsToDelete) {
+        batch.delete(doc(db, "users", user.uid, "chats", id));
+      }
+      batch.commit().catch((error) => {
+        handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/chats`);
+      });
+    }
+  }, [user, canCloudSync]);
 
   const buildRequest = useCallback((messages: Message[]): ChatRequest => {
     const s = stateRef.current;
@@ -349,6 +619,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           error: true,
         });
         setStreaming(false);
+        const latestChat = stateRef.current.chats.find((c) => c.id === chatId);
+        if (latestChat) void syncChatToCloud(latestChat).catch(() => {});
         return;
       }
 
@@ -361,8 +633,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         patchMessage(chatId, botId, { content: acc, thinking, pending: false });
       }
       setStreaming(false);
+
+      const latestChat = stateRef.current.chats.find((c) => c.id === chatId);
+      if (latestChat) void syncChatToCloud(latestChat).catch(() => {});
     },
-    [patchMessage],
+    [patchMessage, syncChatToCloud],
   );
 
   const send = useCallback(
