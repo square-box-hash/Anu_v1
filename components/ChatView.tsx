@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { MODELS, findModel } from "@/lib/types";
 import { cx } from "@/lib/utils";
@@ -33,12 +33,26 @@ export default function ChatView({
   const model = findModel(store.settings.model, store.settings.customModels) ?? MODELS[1] ?? MODELS[0];
   const activeSkills = store.skills.filter((s) => s.enabled);
 
+  const [atBottom, setAtBottom] = useState(true);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 220;
     if (nearBottom) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages.length, lastContent]);
+
+  // Show the jump button once the reader has scrolled away from the newest turn.
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 160);
+  };
+
+  const jumpToLatest = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    setAtBottom(true);
+  };
 
   return (
     <main className="relative flex h-full min-w-0 flex-1 flex-col">
@@ -90,7 +104,8 @@ export default function ChatView({
         </button>
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1">
+      <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
         {messages.length === 0 ? (
           <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center px-5 py-10 sm:px-10 sm:py-14">
             <div className="animate-rise">
@@ -169,6 +184,18 @@ export default function ChatView({
             ))}
             <div ref={bottomRef} className="h-1" />
           </div>
+        )}
+      </div>
+
+        {!atBottom && messages.length > 0 && (
+          <button
+            onClick={jumpToLatest}
+            aria-label="Scroll to latest"
+            title="Scroll to latest"
+            className="absolute bottom-3 left-1/2 z-20 flex h-9 w-9 -translate-x-1/2 animate-fade items-center justify-center rounded-full border border-line bg-panel/95 text-muted shadow-[0_6px_24px_-8px_rgba(0,0,0,0.9)] backdrop-blur transition-colors hover:border-accent/50 hover:text-accent-pale"
+          >
+            <Chevron className="h-4 w-4" />
+          </button>
         )}
       </div>
 
