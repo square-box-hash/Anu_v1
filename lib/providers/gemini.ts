@@ -10,7 +10,16 @@ export type GeminiEvent =
   | { type: "text"; text: string }
   | { type: "thought"; text: string }
   | { type: "modelPart"; part: Part }
-  | { type: "functionCall"; id?: string; name: string; args: Record<string, unknown> };
+  | { type: "functionCall"; id?: string; name: string; args: Record<string, unknown> }
+  | {
+      type: "usage";
+      usage: {
+        inputTokens?: number;
+        outputTokens?: number;
+        thoughtTokens?: number;
+        totalTokens?: number;
+      };
+    };
 
 export function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -311,6 +320,19 @@ export async function* streamGemini(options: StreamOptions): AsyncGenerator<Gemi
         }
 
         for await (const chunk of responseStream) {
+          // Token accounting arrives on the chunks; the client meters it per turn.
+          if (chunk.usageMetadata) {
+            yield {
+              type: "usage",
+              usage: {
+                inputTokens: chunk.usageMetadata.promptTokenCount ?? undefined,
+                outputTokens: chunk.usageMetadata.candidatesTokenCount ?? undefined,
+                thoughtTokens: chunk.usageMetadata.thoughtsTokenCount ?? undefined,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? undefined,
+              },
+            };
+          }
+
           const parts = chunk.candidates?.[0]?.content?.parts ?? [];
           for (const part of parts) {
             if (part.functionCall?.name) {

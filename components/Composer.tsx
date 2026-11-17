@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { TRANSLATE_LANGUAGES, getAllModels } from "@/lib/models";
 import { useStore } from "@/lib/store";
+import { canExtract, extractText } from "@/lib/extract";
 import type { Attachment } from "@/lib/types";
 import { cx, formatBytes, uid } from "@/lib/utils";
 import {
@@ -65,6 +66,7 @@ export default function Composer() {
   const [menu, setMenu] = useState(false);
   const [recording, setRecording] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
+  const [fileNote, setFileNote] = useState<string | null>(null);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -102,15 +104,16 @@ export default function Composer() {
   const addFiles = async (list: FileList | globalThis.File[] | null) => {
     if (!list) return;
     const rawFiles = Array.from(list).slice(0, 8 - files.length);
+    const notes: string[] = [];
     const next: Attachment[] = await Promise.all(
       rawFiles.map(async (f) => {
         let textContent: string | undefined;
-        if (f.size <= 120_000 && isReadableTextFile(f)) {
-          try {
-            textContent = await f.text();
-          } catch {
-            /* ignore unreadable file */
-          }
+        if (canExtract(f)) {
+          const extracted = await extractText(f);
+          textContent = extracted.text;
+          if (!extracted.text && extracted.note) notes.push(extracted.note);
+        } else if (f.size > 0) {
+          notes.push(`${f.name}: this file type can't be read as text yet.`);
         }
         return {
           id: uid(),
@@ -121,6 +124,7 @@ export default function Composer() {
         };
       }),
     );
+    setFileNote(notes.length ? notes.join("  ·  ") : null);
     setFiles((prev) => [...prev, ...next].slice(0, 8));
   };
 
@@ -272,6 +276,12 @@ export default function Composer() {
                   </button>
                 </span>
               ))}
+            </div>
+          )}
+
+          {fileNote && (
+            <div className="border-b border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-200/90">
+              {fileNote}
             </div>
           )}
 

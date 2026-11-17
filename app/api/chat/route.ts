@@ -18,7 +18,7 @@ import type { McpServerConfig } from "@/lib/mcp";
 import { MEMORY_CONFIG } from "@/lib/memory";
 import { AUTO_MODEL_ID, DEFAULT_MODEL, DEFAULT_ORCHESTRATION_CONFIG, findModel } from "@/lib/models";
 import { SKILL_TOOL_DECLARATIONS, SKILL_TOOL_NAMES, listSkills, runSkillTool } from "@/lib/skills";
-import type { ChatRequest, RoutingInfo } from "@/lib/types";
+import type { ChatRequest, RoutingInfo, Usage } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +31,7 @@ type Event =
   | { type: "tool_call"; id: string; server: string; name: string; args: unknown }
   | { type: "tool_result"; id: string; ok: boolean; content: string; error?: string }
   | { type: "error"; text: string }
+  | { type: "usage"; usage: Usage }
   | { type: "ping" };
 
 const isSkillTool = (name: string) => (SKILL_TOOL_NAMES as readonly string[]).includes(name);
