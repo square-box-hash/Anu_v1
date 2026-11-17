@@ -41,6 +41,13 @@ export interface QuoteRef {
   role: Role;
 }
 
+export interface Usage {
+  inputTokens?: number;
+  outputTokens?: number;
+  thoughtTokens?: number;
+  totalTokens?: number;
+}
+
 export interface Message {
   id: string;
   role: Role;
@@ -49,6 +56,8 @@ export interface Message {
   routing?: RoutingInfo;
   /** Text this message was written in reply to. */
   quote?: QuoteRef;
+  /** Token counts reported by the provider for this turn. */
+  usage?: Usage;
   toolCalls?: ToolCall[];
   notices?: string[];
   /** Reasoning tokens, when the model returns them. */

@@ -41,6 +41,7 @@ import type {
   OrchestrationConfig,
   QuoteRef,
   RepoSkill,
+  Usage,
   RoutingInfo,
   Settings,
   Skill,
@@ -755,6 +756,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 };
                 patchMessage(chatId, botId, { toolCalls: [...calls] });
               }
+              return;
+            }
+            case "usage": {
+              const usage = (event as unknown as { usage?: Usage }).usage;
+              if (usage) patchMessage(chatId, botId, { usage });
               return;
             }
             case "notice": {

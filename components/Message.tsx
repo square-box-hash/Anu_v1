@@ -7,7 +7,8 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import type { Message as Msg, ToolCall } from "@/lib/types";
+import type { Message as Msg, ToolCall, Usage } from "@/lib/types";
+import { estimateCost, formatCost, formatTokens } from "@/lib/pricing";
 import { useSpeech } from "@/lib/speech";
 import { useStore } from "@/lib/store";
 import { cx, formatBytes } from "@/lib/utils";
@@ -293,6 +294,9 @@ export function traceFor(m: Msg, options: { fullText?: boolean } = {}) {
       failed: Boolean(m.error),
     },
     routing: m.routing ?? null,
+    usage: m.usage
+      ? { ...m.usage, costUsd: estimateCost(m.model ?? m.routing?.selectedModel, m.usage) }
+      : null,
     tools: { count: tools.length, calls: tools },
     notices: m.notices ?? [],
     reasoning: m.thinking
@@ -304,6 +308,26 @@ export function traceFor(m: Msg, options: { fullText?: boolean } = {}) {
     attachments: (m.attachments ?? []).map((a) => ({ name: a.name, type: a.type, size: a.size })),
     content: options.fullText ? { characters: m.content.length, text: m.content } : preview(m.content),
   };
+}
+
+/** Token and cost meter for one turn. */
+function UsageLine({ usage, model }: { usage: Usage; model?: string | null }) {
+  const cost = estimateCost(model, usage);
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.1em] text-faint/70">
+      <span>{formatTokens(usage.inputTokens)} in</span>
+      <span className="text-faint/40">·</span>
+      <span>{formatTokens(usage.outputTokens)} out</span>
+      {usage.thoughtTokens ? (
+        <>
+          <span className="text-faint/40">·</span>
+          <span>{formatTokens(usage.thoughtTokens)} thinking</span>
+        </>
+      ) : null}
+      <span className="text-faint/40">·</span>
+      <span className={cost == null ? "text-faint/60" : "text-emerald-300/80"}>{formatCost(cost)}</span>
+    </div>
+  );
 }
 
 function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) {
@@ -720,6 +744,10 @@ export default function Message({
           </ReactMarkdown>
         </div>
       )}
+
+      {!message.pending && message.usage ? (
+        <UsageLine usage={message.usage} model={message.model ?? message.routing?.selectedModel} />
+      ) : null}
 
       {!message.pending && message.content ? actionBar("left") : null}
 
