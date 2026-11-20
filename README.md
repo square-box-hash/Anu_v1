@@ -4,7 +4,7 @@ A purple-themed AI chat interface in the spirit of Claude / ChatGPT / Gemini, wi
 rig.ai-style workspace layout. Built with **Next.js (App Router) + TypeScript + Tailwind CSS**,
 streaming from Google Gemini.
 
-Live: https://anuv1.vercel.app/
+Live: https://anu-v1.cloudzyro.app/
 
 ## Features
 
@@ -109,11 +109,24 @@ node examples/echo-server.mjs
 Add it with transport `stdio` and target `node examples/echo-server.mjs` — the model then sees
 `echo` and `add`.
 
-### Deployment note
+### Deployment
 
-`stdio` servers are spawned as child processes, which works locally and on a normal Node host but
-**not** on serverless platforms such as Vercel. On Vercel use `http`/`sse` servers, or self-host the
-app if you need `npx`-style servers.
+Live at **https://anu-v1.cloudzyro.app/**, on Cloudzyro — a Node host that keeps the process running
+between requests, not a serverless platform. That matters for what this app can do:
+
+- **`stdio` MCP servers work in production.** They are child processes of the app, which a
+  long-lived Node host supports and a serverless function does not. Nothing needs to be limited to
+  `http`/`sse`.
+- **A sidecar can be reached on `localhost`.** SRag, or any other local MCP service, can run as its
+  own process on the same machine and be connected at `http://localhost:8000/mcp`. If it runs in a
+  separate container instead, give it a public address and an `Authorization` header — Anu's MCP
+  client supports `headers` on `http`/`sse` servers.
+- **Watch the sleeping plan.** On the free tier the app rests after an hour without visitors and the
+  next request pays a cold start. For an agent that calls tools mid-answer that is a failure mode,
+  not a delay: the first tool call of the day can die on a container that is still waking. Keep the
+  app (and any sidecar) on a plan that never sleeps if you rely on connectors.
+- **The disk is not durable.** Treat the working directory as scratch: files written at runtime are
+  lost on redeploy. Workspace skills belong in a store, not on disk.
 
 ## Model
 
