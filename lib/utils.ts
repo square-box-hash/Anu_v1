@@ -41,6 +41,23 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
+/**
+ * Time-of-day greeting with the person's first name, so opening the app says
+ * something other than "New chat". Falls back to the time alone when there is
+ * no name to use.
+ */
+export function greetingFor(name?: string | null, now: Date = new Date()): string {
+  const hour = now.getHours();
+  const part =
+    hour < 5 ? "Still up" : hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : hour < 22 ? "Evening" : "Late night";
+  const clean = (name ?? "").trim();
+  if (!clean) return part;
+  const first = clean.split(/\s+/)[0];
+  // "G Mandi" would greet as "G", which reads worse than the full name.
+  const who = first.length > 1 ? first : clean;
+  return `${part}, ${who}`;
+}
+
 export function titleFrom(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
   if (!clean) return "New chat";
