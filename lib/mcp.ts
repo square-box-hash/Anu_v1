@@ -96,10 +96,40 @@ async function connect(server: McpServerConfig): Promise<Client> {
   return client;
 }
 
+/**
+ * Forget a cached connection and close it.
+ *
+ * The pool is keyed by server signature and a client is reused for the life of
+ * the process. That is fine until the upstream goes away — a container redeploy,
+ * a tunnel reconnect, a reboot — at which point the cached client is a corpse
+ * and every later call against it fails. Dropping it is what lets the next call
+ * open a fresh connection.
+ */
+async function dropClient(server: McpServerConfig): Promise<void> {
+  const key = signature(server);
+  const cached = clients.get(key);
+  if (!cached) return;
+  clients.delete(key);
+  try {
+    await cached.close();
+  } catch {
+    /* already gone — nothing to clean up */
+  }
+}
+
 export async function listServerTools(server: McpServerConfig): Promise<McpTool[]> {
-  const client = await connect(server);
-  const { tools } = await client.listTools();
   const prefix = slug(server.name);
+
+  let tools: Awaited<ReturnType<Client["listTools"]>>["tools"];
+  try {
+    const client = await connect(server);
+    tools = (await client.listTools()).tools;
+  } catch (error) {
+    // A listing against a stale connection throws too; forget it so the next
+    // attempt reconnects instead of failing the same way.
+    await dropClient(server);
+    throw error;
+  }
 
   return tools.map((tool) => ({
     server: server.name,
@@ -157,7 +187,7 @@ export async function callTool(
 
   const toolName = qualified.slice(slug(owner.name).length + 2);
 
-  try {
+  const run = async (): Promise<ToolCallResult> => {
     const client = await connect(owner);
     const result = (await client.callTool({ name: toolName, arguments: args })) as {
       content?: unknown;
@@ -165,12 +195,25 @@ export async function callTool(
     };
     const text = renderContent(result.content);
     return result.isError ? { ok: false, content: text, error: text } : { ok: true, content: text };
-  } catch (error) {
-    return {
-      ok: false,
-      content: "",
-      error: error instanceof Error ? error.message : String(error),
-    };
+  };
+
+  try {
+    return await run();
+  } catch (first) {
+    // The connection may simply be stale. Drop it and try once more before
+    // reporting a failure — this is the difference between a redeployed MCP
+    // server costing one slow call and costing every call until the app restarts.
+    await dropClient(owner);
+    try {
+      return await run();
+    } catch (second) {
+      await dropClient(owner);
+      return {
+        ok: false,
+        content: "",
+        error: second instanceof Error ? second.message : String(second ?? first),
+      };
+    }
   }
 }
 
