@@ -21,7 +21,7 @@ export function Toggle({
       onClick={() => onChange(!checked)}
       className={cx(
         "relative h-[20px] w-[36px] shrink-0 rounded-full border transition-colors duration-200",
-        checked ? "border-accent/60 bg-accent/80" : "border-line bg-white/5",
+        checked ? "border-accent/60 bg-accent/80" : "border-line bg-surface",
       )}
     >
       <span
@@ -51,7 +51,7 @@ export function Pill({
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium tracking-tight transition-colors",
         active
           ? "border-accent/50 bg-accent/15 text-accent-pale"
-          : "border-line bg-white/[0.03] text-muted hover:border-linestrong hover:text-ink",
+          : "border-line bg-surface text-muted hover:border-linestrong hover:text-ink",
     className,
   );
 
@@ -110,7 +110,7 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-lg border border-line bg-black/30 px-2.5 py-2 text-[12.5px] text-ink placeholder:text-faint/70 outline-none transition-colors focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
+  "w-full rounded-lg border border-line bg-sunken px-2.5 py-2 text-[12.5px] text-ink placeholder:text-faint/70 outline-none transition-colors focus:border-accent/60 focus:ring-2 focus:ring-accent/20";
 
 export function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (

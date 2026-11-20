@@ -62,7 +62,7 @@ export default function SkillDialog({
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
 
       <div
         role="dialog"
@@ -85,7 +85,7 @@ export default function SkillDialog({
             <Toggle checked={enabled} onChange={onToggle} label={skill.name} />
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+              className="rounded-lg p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
               aria-label="Close"
             >
               <X className="h-4 w-4" />
@@ -98,7 +98,7 @@ export default function SkillDialog({
             onClick={() => setFile(null)}
             className={cx(
               "shrink-0 rounded-lg px-2.5 py-1 font-mono text-[10.5px] transition-colors",
-              file === null ? "bg-accent/15 text-accent-pale" : "text-faint hover:bg-white/5 hover:text-ink",
+              file === null ? "bg-accent/15 text-accent-pale" : "text-faint hover:bg-hover hover:text-ink",
             )}
           >
             SKILL.md
@@ -109,7 +109,7 @@ export default function SkillDialog({
               onClick={() => setFile(item)}
               className={cx(
                 "shrink-0 rounded-lg px-2.5 py-1 font-mono text-[10.5px] transition-colors",
-                file === item ? "bg-accent/15 text-accent-pale" : "text-faint hover:bg-white/5 hover:text-ink",
+                file === item ? "bg-accent/15 text-accent-pale" : "text-faint hover:bg-hover hover:text-ink",
               )}
             >
               {item}
@@ -119,7 +119,7 @@ export default function SkillDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
           {error ? (
-            <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[12px] text-rose-200">
+            <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
               {error}
             </p>
           ) : body === null ? (
@@ -127,7 +127,7 @@ export default function SkillDialog({
               {[0, 1, 2, 3].map((row) => (
                 <div
                   key={row}
-                  className="h-3 animate-pulse rounded bg-white/[0.05]"
+                  className="h-3 animate-pulse rounded bg-surface"
                   style={{ width: `${92 - row * 12}%` }}
                 />
               ))}

@@ -59,7 +59,7 @@ export default function ChatView({
       <header className="z-20 flex h-[54px] shrink-0 items-center gap-2 border-b border-line px-3 sm:px-4">
         <button
           onClick={onOpenSidebar}
-          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-white/5 hover:text-ink lg:hidden"
+          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-ink lg:hidden"
           aria-label="Open sidebar"
         >
           <Menu className="h-4 w-4" />
@@ -153,7 +153,7 @@ export default function ChatView({
                 <button
                   key={s.title}
                   onClick={() => void store.send(s.body)}
-                  className="group flex items-start gap-3 rounded-xl border border-line/70 bg-white/[0.015] p-3 text-left transition-all hover:border-accent/40 hover:bg-accent/[0.05]"
+                  className="group flex items-start gap-3 rounded-xl border border-line/70 bg-surface p-3 text-left transition-all hover:border-accent/40 hover:bg-accent/[0.05]"
                 >
                   <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-line text-faint transition-colors group-hover:border-accent/40 group-hover:text-accent-soft">
                     {s.icon}

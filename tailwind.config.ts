@@ -19,6 +19,16 @@ const config: Config = {
           soft: "var(--accent-soft)",
           pale: "var(--accent-pale)",
         },
+        // Theme-aware surfaces: these replace the hardcoded black/white
+        // overlays that only worked on the dark canvas.
+        surface: "var(--surface)",
+        hover: "var(--hover)",
+        sunken: "var(--sunken)",
+        field: "var(--field)",
+        scrim: "var(--scrim)",
+        danger: "rgb(var(--danger) / <alpha-value>)",
+        ok: "rgb(var(--ok) / <alpha-value>)",
+        warn: "rgb(var(--warn) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],

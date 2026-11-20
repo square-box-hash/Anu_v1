@@ -143,7 +143,7 @@ export default function AuthScreen() {
         <div className="glass ring-accent rounded-2xl border border-line p-5 sm:p-6">
           {mode !== "reset" && (
             <>
-              <div className="mb-4 grid grid-cols-2 rounded-xl border border-line bg-black/30 p-1">
+              <div className="mb-4 grid grid-cols-2 rounded-xl border border-line bg-sunken p-1">
                 <button
                   type="button"
                   onClick={() => switchMode("signin")}
@@ -171,7 +171,7 @@ export default function AuthScreen() {
                   type="button"
                   onClick={() => void handleGoogle()}
                   disabled={busy !== null}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
                 >
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#0b0912]">
                     G
@@ -183,7 +183,7 @@ export default function AuthScreen() {
                   type="button"
                   onClick={() => void handleGithub()}
                   disabled={busy !== null}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-medium text-ink transition-all hover:border-accent/50 hover:bg-accent/10 disabled:opacity-50"
                 >
                   <GitHub className="h-4 w-4 text-ink" />
                   {busy === "github" ? "Connecting to GitHub…" : "Continue with GitHub"}
@@ -303,13 +303,13 @@ export default function AuthScreen() {
                 </label>
 
                 <div className="grid grid-cols-3 gap-1.5 pt-0.5 text-[10.5px]">
-                  <span className={cx("flex items-center gap-1", passwordLongEnough ? "text-emerald-300" : "text-faint")}>
+                  <span className={cx("flex items-center gap-1", passwordLongEnough ? "text-ok" : "text-faint")}>
                     <Check className="h-3 w-3" /> 8+ chars
                   </span>
-                  <span className={cx("flex items-center gap-1", passwordHasLetter ? "text-emerald-300" : "text-faint")}>
+                  <span className={cx("flex items-center gap-1", passwordHasLetter ? "text-ok" : "text-faint")}>
                     <Check className="h-3 w-3" /> Letter
                   </span>
-                  <span className={cx("flex items-center gap-1", passwordHasNumber ? "text-emerald-300" : "text-faint")}>
+                  <span className={cx("flex items-center gap-1", passwordHasNumber ? "text-ok" : "text-faint")}>
                     <Check className="h-3 w-3" /> Number
                   </span>
                 </div>
@@ -317,13 +317,13 @@ export default function AuthScreen() {
             )}
 
             {error && (
-              <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-[12px] leading-relaxed text-rose-200">
+              <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] leading-relaxed text-danger">
                 {error}
               </div>
             )}
 
             {notice && (
-              <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-[12px] leading-relaxed text-emerald-200">
+              <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-[12px] leading-relaxed text-ok">
                 {notice}
               </div>
             )}

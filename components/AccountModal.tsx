@@ -95,7 +95,7 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div onClick={onClose} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div onClick={onClose} className="absolute inset-0 bg-scrim backdrop-blur-sm" />
       <div className="glass ring-accent relative z-10 w-full max-w-[440px] animate-rise rounded-2xl border border-line p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -105,14 +105,14 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-white/5 hover:text-ink"
+            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-ink"
             aria-label="Close account modal"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-4 space-y-3 rounded-xl border border-line bg-black/25 p-3">
+        <div className="mt-4 space-y-3 rounded-xl border border-line bg-sunken p-3">
           <div className="flex items-center justify-between gap-2 text-[12px]">
             <span className="text-faint">Signed in as</span>
             <span className="truncate font-medium text-ink">{displayName}</span>
@@ -121,17 +121,17 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
             <span className="text-faint">Sign-in methods</span>
             <div className="flex items-center gap-1.5">
               {hasGoogleProvider && (
-                <span className="rounded-full border border-line bg-white/[0.04] px-2 py-0.5 text-[10.5px] text-ink">
+                <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[10.5px] text-ink">
                   Google
                 </span>
               )}
               {hasGithubProvider && (
-                <span className="rounded-full border border-line bg-white/[0.04] px-2 py-0.5 text-[10.5px] text-ink">
+                <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[10.5px] text-ink">
                   GitHub
                 </span>
               )}
               {hasPasswordProvider && (
-                <span className="rounded-full border border-line bg-white/[0.04] px-2 py-0.5 text-[10.5px] text-ink">
+                <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[10.5px] text-ink">
                   Password
                 </span>
               )}
@@ -140,24 +140,24 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-center justify-between gap-2 text-[12px]">
             <span className="text-faint">Email verification</span>
             {user.emailVerified ? (
-              <span className="inline-flex items-center gap-1 text-[11.5px] text-emerald-300">
+              <span className="inline-flex items-center gap-1 text-[11.5px] text-ok">
                 <ShieldCheck className="h-3.5 w-3.5" /> Verified (cloud sync active)
               </span>
             ) : (
-              <span className="text-[11.5px] text-amber-300">Pending verification</span>
+              <span className="text-[11.5px] text-warn">Pending verification</span>
             )}
           </div>
         </div>
 
         {!user.emailVerified && (
-          <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-[11.5px] leading-relaxed text-amber-100">
+          <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-[11.5px] leading-relaxed text-warn">
             <p>Verify your email address to enable cloud chat sync across devices.</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={verifyBusy}
                 onClick={() => void handleResendVerification()}
-                className="rounded-lg border border-amber-300/40 bg-amber-300/15 px-2.5 py-1 text-[11px] font-medium text-amber-100 hover:bg-amber-300/25 disabled:opacity-50"
+                className="rounded-lg border border-amber-300/40 bg-amber-300/15 px-2.5 py-1 text-[11px] font-medium text-warn hover:bg-warn/20 disabled:opacity-50"
               >
                 Resend verification email
               </button>
@@ -165,7 +165,7 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 disabled={verifyBusy}
                 onClick={() => void handleRefresh()}
-                className="inline-flex items-center gap-1 rounded-lg border border-line bg-black/30 px-2.5 py-1 text-[11px] text-ink hover:bg-white/10 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-line bg-sunken px-2.5 py-1 text-[11px] text-ink hover:bg-hover disabled:opacity-50"
               >
                 <Refresh className={cx("h-3 w-3", verifyBusy && "animate-spin")} />
                 Refresh status
@@ -217,13 +217,13 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {error && (
-            <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-[11.5px] text-rose-200">
+            <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[11.5px] text-danger">
               {error}
             </div>
           )}
 
           {notice && (
-            <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-[11.5px] text-emerald-200">
+            <div className="flex items-center gap-1.5 rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-[11.5px] text-ok">
               <Check className="h-3.5 w-3.5 shrink-0" />
               <span>{notice}</span>
             </div>
@@ -240,7 +240,7 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
 
         <div className="mt-4 border-t border-line pt-3">
           <p className="mb-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-faint">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400/80" />
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok/80" />
             <span>
               {persistence === "local"
                 ? "You'll stay signed in on this device until you sign out."
@@ -252,7 +252,7 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={() => void signOutUser()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 py-2 text-[12px] font-medium text-rose-200 transition-colors hover:bg-rose-500/20"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 py-2 text-[12px] font-medium text-danger transition-colors hover:bg-danger/15"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign out

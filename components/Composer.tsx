@@ -249,7 +249,7 @@ export default function Composer() {
               </div>
               <button
                 onClick={() => store.setQuote(null)}
-                className="shrink-0 rounded p-0.5 text-faint transition-colors hover:bg-white/10 hover:text-ink"
+                className="shrink-0 rounded p-0.5 text-faint transition-colors hover:bg-hover hover:text-ink"
                 aria-label="Remove quoted text"
               >
                 <X className="h-3 w-3" />
@@ -262,14 +262,14 @@ export default function Composer() {
               {files.map((f) => (
                 <span
                   key={f.id}
-                  className="group inline-flex items-center gap-1.5 rounded-lg border border-line bg-black/30 px-2 py-1 text-[11px] text-muted"
+                  className="group inline-flex items-center gap-1.5 rounded-lg border border-line bg-sunken px-2 py-1 text-[11px] text-muted"
                 >
                   {f.type.startsWith("image/") ? <ImageIcon className="h-3 w-3 text-accent-soft" /> : <File className="h-3 w-3 text-accent-soft" />}
                   <span className="max-w-[160px] truncate text-ink/85">{f.name}</span>
                   <span className="text-faint">{formatBytes(f.size)}</span>
                   <button
                     onClick={() => setFiles((prev) => prev.filter((x) => x.id !== f.id))}
-                    className="rounded p-0.5 text-faint hover:bg-white/10 hover:text-rose-300"
+                    className="rounded p-0.5 text-faint hover:bg-hover hover:text-danger"
                     aria-label={`Remove ${f.name}`}
                   >
                     <X className="h-2.5 w-2.5" />
@@ -280,13 +280,13 @@ export default function Composer() {
           )}
 
           {fileNote && (
-            <div className="border-b border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-200/90">
+            <div className="border-b border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-warn">
               {fileNote}
             </div>
           )}
 
           {micError && (
-            <div className="border-b border-rose-500/25 bg-rose-500/10 px-3 py-1.5 text-[11px] text-rose-200">
+            <div className="border-b border-rose-500/25 bg-danger/10 px-3 py-1.5 text-[11px] text-danger">
               {micError}
             </div>
           )}
@@ -328,7 +328,7 @@ export default function Composer() {
             />
             <button
               onClick={() => fileRef.current?.click()}
-              className="rounded-lg p-2 text-muted transition-colors hover:bg-white/[0.06] hover:text-ink"
+              className="rounded-lg p-2 text-muted transition-colors hover:bg-hover hover:text-ink"
               title="Attach files"
               aria-label="Attach files"
             >
@@ -342,8 +342,8 @@ export default function Composer() {
               className={cx(
                 "rounded-lg p-2 transition-colors disabled:opacity-40",
                 recording
-                  ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/50 animate-pulse"
-                  : "text-muted hover:bg-white/[0.06] hover:text-ink",
+                  ? "bg-rose-500/20 text-danger ring-1 ring-rose-400/50 animate-pulse"
+                  : "text-muted hover:bg-hover hover:text-ink",
               )}
               title={
                 recording
@@ -360,7 +360,7 @@ export default function Composer() {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenu((m) => !m)}
-                className="flex items-center gap-1.5 rounded-lg border border-line bg-white/[0.03] px-2 py-1.5 text-[11.5px] text-ink/85 transition-colors hover:border-linestrong"
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5 text-[11.5px] text-ink/85 transition-colors hover:border-linestrong"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-accent-soft" />
                 <span className="max-w-[140px] truncate">{activeModel.label}</span>
@@ -385,7 +385,7 @@ export default function Composer() {
                         setMenu(false);
                       }}
                       className={cx(
-                        "flex w-full items-start justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-white/[0.05]",
+                        "flex w-full items-start justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-hover",
                         m.id === store.settings.model && "bg-accent/10",
                       )}
                     >
@@ -393,7 +393,7 @@ export default function Composer() {
                         <span className="flex items-center gap-1.5 text-[12px] text-ink">
                           <span className="truncate">{m.label}</span>
                           {m.badge && (
-                            <span className="shrink-0 rounded border border-line bg-black/30 px-1 py-[0.5px] font-mono text-[8.5px] uppercase tracking-wider text-accent-pale">
+                            <span className="shrink-0 rounded border border-line bg-sunken px-1 py-[0.5px] font-mono text-[8.5px] uppercase tracking-wider text-accent-pale">
                               {m.badge}
                             </span>
                           )}
@@ -415,7 +415,7 @@ export default function Composer() {
                   "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors",
                   store.settings.autoRoute
                     ? "border-accent/45 bg-accent/15 text-accent-pale"
-                    : "border-line bg-white/[0.02] text-muted hover:text-ink",
+                    : "border-line bg-surface text-muted hover:text-ink",
                 )}
                 title="Enable 4-step smart prompt routing (Decisions 1 → Context → Planner → Subagents)"
               >
@@ -425,7 +425,7 @@ export default function Composer() {
             )}
 
             {isLiveTranslate && (
-              <div className="inline-flex items-center gap-1 rounded-lg border border-line bg-white/[0.03] px-1.5 py-1 text-[11px] text-muted">
+              <div className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-1.5 py-1 text-[11px] text-muted">
                 <Languages className="h-3 w-3 text-accent-soft" />
                 <select
                   value={store.settings.orchestration.translateTargetLanguage}
@@ -458,7 +458,7 @@ export default function Composer() {
                 "hidden items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors sm:inline-flex",
                 store.harness.enabled
                   ? "border-accent/40 bg-accent/10 text-accent-pale"
-                  : "border-line bg-white/[0.02] text-muted hover:text-ink",
+                  : "border-line bg-surface text-muted hover:text-ink",
               )}
               title="Toggle harness agent bridge"
             >
@@ -474,8 +474,8 @@ export default function Composer() {
                 className={cx(
                   "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
                   store.streaming
-                    ? "bg-white/10 text-ink hover:bg-white/15"
-                    : "bg-accent text-white shadow-[0_0_20px_-4px_rgba(139,92,246,0.9)] hover:bg-accent-soft disabled:bg-white/[0.06] disabled:text-faint disabled:shadow-none",
+                    ? "bg-surface text-ink hover:bg-hover"
+                    : "bg-accent text-white shadow-[0_0_20px_-4px_rgba(139,92,246,0.9)] hover:bg-accent-soft disabled:bg-surface disabled:text-faint disabled:shadow-none",
                 )}
                 aria-label={store.streaming ? "Stop generating" : "Send message"}
               >
