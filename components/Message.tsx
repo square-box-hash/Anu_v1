@@ -48,12 +48,12 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     }
   };
   return (
-    <div className="my-3 overflow-hidden rounded-xl border border-line bg-black/50">
-      <div className="flex items-center justify-between border-b border-line bg-white/[0.02] px-3 py-1.5">
+    <div className="my-3 overflow-hidden rounded-xl border border-line bg-scrim">
+      <div className="flex items-center justify-between border-b border-line bg-surface px-3 py-1.5">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">{lang || "code"}</span>
         <button
           onClick={copy}
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-white/5 hover:text-ink"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-hover hover:text-ink"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copied ? "Copied" : "Copy"}
@@ -81,12 +81,12 @@ function ThinkingBlock({
   const open = manual ?? auto;
 
   return (
-    <div className="mb-3 overflow-hidden rounded-xl border border-line bg-white/[0.02]">
+    <div className="mb-3 overflow-hidden rounded-xl border border-line bg-surface">
       <button
         type="button"
         onClick={() => setManual(!open)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-hover"
       >
         <Sparkles className={cx("h-3.5 w-3.5", streaming ? "animate-pulse text-accent-soft" : "text-faint")} />
         <span className="text-[11.5px] font-medium text-muted">
@@ -111,15 +111,15 @@ function ToolCallCard({ call }: { call: ToolCall }) {
   const [open, setOpen] = useState(Boolean(call.pending));
   const status = call.pending ? "running" : call.ok ? "ok" : "error";
   const tone =
-    status === "running" ? "text-accent-soft" : status === "ok" ? "text-emerald-300/90" : "text-rose-300/90";
+    status === "running" ? "text-accent-soft" : status === "ok" ? "text-ok/90" : "text-danger";
 
   return (
-    <div className="my-2 overflow-hidden rounded-xl border border-line bg-white/[0.02]">
+    <div className="my-2 overflow-hidden rounded-xl border border-line bg-surface">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-hover"
       >
         <Terminal className={cx("h-3.5 w-3.5", status === "running" ? "animate-pulse text-accent-soft" : "text-faint")} />
         <span className="truncate font-mono text-[11.5px] text-ink">{call.name}</span>
@@ -133,14 +133,14 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         <div className="space-y-2 border-t border-line px-3 py-2.5">
           <div>
             <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">arguments</div>
-            <pre className="overflow-x-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-accent-pale/85">
+            <pre className="overflow-x-auto rounded-lg bg-field p-2 font-mono text-[11px] leading-relaxed text-accent-pale/85">
               {JSON.stringify(call.args ?? {}, null, 2)}
             </pre>
           </div>
           {call.content || call.error ? (
             <div>
               <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">result</div>
-              <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-ink/80">
+              <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap rounded-lg bg-field p-2 font-mono text-[11px] leading-relaxed text-ink/80">
                 {call.error ?? call.content}
               </pre>
             </div>
@@ -160,11 +160,11 @@ const components: Components = {
       const code = String(props.children ?? "").replace(/\n$/, "");
       return <CodeBlock lang={lang} code={code} />;
     }
-    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-black/50 p-3">{children}</pre>;
+    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-scrim p-3">{children}</pre>;
   },
   code({ className, children }) {
     return (
-      <code className="rounded border border-line bg-white/[0.06] px-1.5 py-[1px] font-mono text-[12.5px] text-accent-pale">
+      <code className="rounded border border-line bg-surface px-1.5 py-[1px] font-mono text-[12.5px] text-accent-pale">
         {children}
       </code>
     );
@@ -234,7 +234,7 @@ const components: Components = {
     );
   },
   thead({ children }) {
-    return <thead className="bg-white/[0.04]">{children}</thead>;
+    return <thead className="bg-surface">{children}</thead>;
   },
   th({ children }) {
     return (
@@ -325,7 +325,7 @@ function UsageLine({ usage, model }: { usage: Usage; model?: string | null }) {
         </>
       ) : null}
       <span className="text-faint/40">·</span>
-      <span className={cost == null ? "text-faint/60" : "text-emerald-300/80"}>{formatCost(cost)}</span>
+      <span className={cost == null ? "text-faint/60" : "text-ok/80"}>{formatCost(cost)}</span>
     </div>
   );
 }
@@ -350,7 +350,7 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
       <div className="relative flex max-h-[88dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-2xl border border-line bg-[#0d0a16] shadow-2xl sm:max-h-[86vh] sm:rounded-2xl">
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
           <Cpu className="h-3.5 w-3.5 text-accent-soft" />
@@ -372,20 +372,20 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
           </button>
           <button
             onClick={copy}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-white/5 hover:text-ink"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-hover hover:text-ink"
           >
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {copied ? "Copied" : "Copy JSON"}
           </button>
           <button
             onClick={onClose}
-            className="rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+            className="rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
             aria-label="Close"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="min-h-0 flex-1 overflow-auto bg-field p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.65] text-accent-pale/85">
             {json}
           </pre>
@@ -519,7 +519,7 @@ export default function Message({
   const quote = message.quote;
 
   const quoteChip = quote ? (
-    <div className="mb-1.5 rounded-xl border-l-2 border-accent/50 bg-white/[0.03] px-3 py-1.5 text-[12px] leading-relaxed text-faint">
+    <div className="mb-1.5 rounded-xl border-l-2 border-accent/50 bg-surface px-3 py-1.5 text-[12px] leading-relaxed text-faint">
       <div className="mb-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-faint/70">
         replying to {quote.role === "user" ? "your message" : "the reply"}
       </div>
@@ -531,7 +531,7 @@ export default function Message({
     <div className={cx("mt-1.5 flex items-center gap-0.5", align === "right" && "justify-end")}>
       <button
         onClick={() => void copy()}
-        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
         title={copied ? "Copied" : "Copy message"}
         aria-label="Copy message"
       >
@@ -542,7 +542,7 @@ export default function Message({
         <button
           onClick={toggleSpeech}
           className={cx(
-            "inline-flex items-center gap-1 rounded-md p-1.5 transition-colors hover:bg-white/5",
+            "inline-flex items-center gap-1 rounded-md p-1.5 transition-colors hover:bg-hover",
             speaking ? "text-accent-pale" : "text-faint hover:text-ink",
           )}
           title={speaking ? "Stop reading" : "Read aloud"}
@@ -554,7 +554,7 @@ export default function Message({
 
       <button
         onClick={quoteWhole}
-        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
         title="Reply to this message"
         aria-label="Reply to this message"
       >
@@ -563,7 +563,7 @@ export default function Message({
 
       <button
         onClick={() => setInspecting(true)}
-        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
         title="Inspect routing, tools and reasoning"
         aria-label="Inspect trace"
       >
@@ -573,7 +573,7 @@ export default function Message({
       {!isUser && onRegenerate && (
         <button
           onClick={onRegenerate}
-          className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+          className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
           title="Regenerate"
           aria-label="Regenerate response"
         >
@@ -619,7 +619,7 @@ export default function Message({
                   item.run();
                   setMenu(null);
                 }}
-                className="block w-full px-3 py-1.5 text-left text-[12px] text-muted transition-colors hover:bg-white/[0.06] hover:text-ink"
+                className="block w-full px-3 py-1.5 text-left text-[12px] text-muted transition-colors hover:bg-hover hover:text-ink"
               >
                 {item.label}
               </button>
@@ -654,7 +654,7 @@ export default function Message({
           <div
             onMouseUp={onSelect}
             onTouchEnd={endTouch}
-            className="select-text rounded-2xl border border-white/[0.07] bg-white/[0.07] px-4 py-2.5 text-[14.5px] leading-[1.65] text-ink whitespace-pre-wrap"
+            className="select-text rounded-2xl border border-line bg-surface px-4 py-2.5 text-[14.5px] leading-[1.65] text-ink whitespace-pre-wrap"
           >
             {message.content}
           </div>
@@ -673,7 +673,7 @@ export default function Message({
 
       {(message.routing || message.model) && (
         <div
-          className="mb-2 inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border border-line bg-white/[0.025] px-2.5 py-1 text-[10.5px] text-muted"
+          className="mb-2 inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-[10.5px] text-muted"
           title={message.routing?.reason}
         >
           <Cpu className="h-3 w-3 shrink-0 text-accent-soft" />
@@ -711,7 +711,7 @@ export default function Message({
       {message.notices?.length ? (
         <div className="mb-2 space-y-1">
           {message.notices.map((notice, index) => (
-            <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-200/70">
+            <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
               <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-amber-300/70" />
               <span className="min-w-0 break-words">{notice}</span>
             </p>

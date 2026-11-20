@@ -66,4 +66,11 @@ export const MicOff = (p: P) => <S {...p}><path d="m2 2 20 20M9 9v3a3 3 0 0 0 5.
 export const Volume2 = (p: P) => <S {...p}><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /></S>;
 export const Languages = (p: P) => <S {...p}><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6" /></S>;
 export const Cpu = (p: P) => <S {...p}><rect x="6" y="6" width="12" height="12" rx="2" /><path d="M9 1v5M15 1v5M9 18v5M15 18v5M1 9h5M1 15h5M18 9h5M18 15h5" /></S>;
+export const Sun = (p: P) => <S {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></S>;
+export const Moon = (p: P) => <S {...p}><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z" /></S>;
+export const Palette = (p: P) => <S {...p}><path d="M12 3a9 9 0 1 0 0 18 2.5 2.5 0 0 0 2.5-2.5c0-.7-.3-1.3-.7-1.8a1.6 1.6 0 0 1 1.2-2.7H17a4 4 0 0 0 4-4c0-3.9-4-7-9-7Z" /><circle cx="8" cy="10" r="1.2" /><circle cx="12" cy="7.5" r="1.2" /><circle cx="16" cy="10" r="1.2" /></S>;
+export const PanelLeft = (p: P) => <S {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></S>;
+export const Clock = (p: P) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></S>;
+export const BookOpen = (p: P) => <S {...p}><path d="M12 6.5C10.5 5 8.4 4.5 4 4.5v13c4.4 0 6.5.5 8 2 1.5-1.5 3.6-2 8-2v-13c-4.4 0-6.5.5-8 2Z" /><path d="M12 6.5v13" /></S>;
+export const Megaphone = (p: P) => <S {...p}><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1Z" /><path d="M15 8.5a5 5 0 0 1 0 7M18 6a9 9 0 0 1 0 12" /></S>;
 export const Sliders = (p: P) => <S {...p}><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4" /></S>;

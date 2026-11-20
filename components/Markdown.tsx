@@ -27,12 +27,12 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     }
   };
   return (
-    <div className="my-3 overflow-hidden rounded-xl border border-line bg-black/50">
-      <div className="flex items-center justify-between border-b border-line bg-white/[0.02] px-3 py-1.5">
+    <div className="my-3 overflow-hidden rounded-xl border border-line bg-scrim">
+      <div className="flex items-center justify-between border-b border-line bg-surface px-3 py-1.5">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">{lang || "code"}</span>
         <button
           onClick={copy}
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-white/5 hover:text-ink"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-hover hover:text-ink"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copied ? "Copied" : "Copy"}
@@ -54,11 +54,11 @@ const components: Components = {
       const code = String(props.children ?? "").replace(/\n$/, "");
       return <CodeBlock lang={lang} code={code} />;
     }
-    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-black/50 p-3">{children}</pre>;
+    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-scrim p-3">{children}</pre>;
   },
   code({ className, children }) {
     return (
-      <code className="rounded border border-line bg-white/[0.06] px-1.5 py-[1px] font-mono text-[12.5px] text-accent-pale">
+      <code className="rounded border border-line bg-surface px-1.5 py-[1px] font-mono text-[12.5px] text-accent-pale">
         {children}
       </code>
     );
@@ -128,7 +128,7 @@ const components: Components = {
     );
   },
   thead({ children }) {
-    return <thead className="bg-white/[0.04]">{children}</thead>;
+    return <thead className="bg-surface">{children}</thead>;
   },
   th({ children }) {
     return (

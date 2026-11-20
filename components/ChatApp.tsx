@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider, useStore } from "@/lib/store";
+import { ThemeProvider } from "@/lib/theme";
 import AccountModal from "./AccountModal";
 import AuthScreen from "./AuthScreen";
 import ChatView from "./ChatView";
@@ -10,6 +11,7 @@ import Logo from "./Logo";
 import Rail, { initialsFor } from "./Rail";
 import type { Section } from "./Rail";
 import Sidebar from "./Sidebar";
+import { PanelLeft } from "./Icons";
 import { cx } from "@/lib/utils";
 
 function Workspace() {
@@ -17,6 +19,7 @@ function Workspace() {
   const { user } = useAuth();
   const [section, setSection] = useState<Section>("chats");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
 
   useEffect(() => {
@@ -29,7 +32,9 @@ function Workspace() {
       }
       if (meta && e.key.toLowerCase() === "b") {
         e.preventDefault();
-        setSidebarOpen((open) => !open);
+        // Desktop: collapse the side panel. Narrow screens: the drawer.
+        if (window.innerWidth >= 1024) setPanelOpen((open) => !open);
+        else setSidebarOpen((open) => !open);
       }
       if (e.key === "Escape") {
         setSidebarOpen(false);
@@ -62,11 +67,25 @@ function Workspace() {
       {/* desktop: rail + panel, chat to the right */}
       <div className="relative z-10 hidden lg:flex">
         {rail}
-        <Sidebar
-          section={section}
-          onSection={setSection}
-          onOpenAccount={() => setAccountOpen(true)}
-        />
+        {panelOpen ? (
+          <Sidebar
+            section={section}
+            onSection={setSection}
+            onCollapse={() => setPanelOpen(false)}
+            onOpenAccount={() => setAccountOpen(true)}
+          />
+        ) : (
+          <div className="flex h-full w-[46px] shrink-0 flex-col items-center border-r border-line bg-soft/60 py-3">
+            <button
+              onClick={() => setPanelOpen(true)}
+              title="Show panel (⌘B)"
+              aria-label="Show panel"
+              className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-ink"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* mobile / tablet drawer */}
@@ -79,7 +98,7 @@ function Workspace() {
         <div
           onClick={() => setSidebarOpen(false)}
           className={cx(
-            "absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity",
+            "absolute inset-0 bg-scrim backdrop-blur-sm transition-opacity",
             sidebarOpen ? "opacity-100" : "opacity-0",
           )}
         />
@@ -158,8 +177,10 @@ function AuthGate() {
 
 export default function ChatApp() {
   return (
-    <AuthProvider>
-      <AuthGate />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

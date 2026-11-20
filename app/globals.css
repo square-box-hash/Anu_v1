@@ -2,7 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ───────────────────────────────────────────────────────────────────────────
+   Themes. Every colour in the app resolves through these variables, so a
+   theme is one block of values — no component knows which theme is active.
+
+   dark   "Noir"     the original near-black violet canvas
+   light  "Paper"    the same purple on a paper-white surface
+   plum   "Amethyst" a distinct, warmer fuchsia-violet
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #050408;
   --bg-soft: #08060e;
   --panel: #100d19;
@@ -15,6 +26,101 @@
   --accent: #8b5cf6;
   --accent-soft: #a78bfa;
   --accent-pale: #d6c9ff;
+
+  /* surfaces — replace hardcoded black/white overlays */
+  --surface: rgba(255, 255, 255, 0.03);
+  --hover: rgba(255, 255, 255, 0.07);
+  --sunken: rgba(0, 0, 0, 0.25);
+  --field: rgba(0, 0, 0, 0.4);
+  --scrim: rgba(0, 0, 0, 0.62);
+
+  /* status */
+  --danger: 253 164 175;
+  --ok: 110 231 183;
+  --warn: 253 230 138;
+
+  /* atmosphere */
+  --glow-a: rgba(139, 92, 246, 0.12);
+  --glow-b: rgba(109, 40, 217, 0.1);
+  --grid: rgba(196, 181, 253, 0.055);
+  --spot: rgba(139, 92, 246, 0.17);
+  --glass-a: rgba(22, 18, 31, 0.86);
+  --glass-b: rgba(13, 11, 20, 0.9);
+  --shadow-accent: rgba(139, 92, 246, 0.55);
+  --scroll: rgba(150, 122, 255, 0.22);
+  --scroll-hover: rgba(150, 122, 255, 0.42);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #faf9fd;
+  --bg-soft: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f5f2fe;
+  --line: rgba(88, 28, 135, 0.12);
+  --line-strong: rgba(109, 40, 217, 0.28);
+  --text: #1a1526;
+  --muted: #5d5670;
+  --faint: #8a8398;
+  --accent: #7c3aed;
+  --accent-soft: #8b5cf6;
+  --accent-pale: #5b21b6;
+
+  --surface: rgba(109, 40, 217, 0.035);
+  --hover: rgba(109, 40, 217, 0.075);
+  --sunken: rgba(109, 40, 217, 0.05);
+  --field: #ffffff;
+  --scrim: rgba(26, 21, 38, 0.35);
+
+  --danger: 190 18 60;
+  --ok: 4 120 87;
+  --warn: 180 83 9;
+
+  --glow-a: rgba(139, 92, 246, 0.1);
+  --glow-b: rgba(167, 139, 250, 0.1);
+  --grid: rgba(109, 40, 217, 0.03);
+  --spot: rgba(139, 92, 246, 0.09);
+  --glass-a: rgba(255, 255, 255, 0.85);
+  --glass-b: rgba(250, 249, 253, 0.9);
+  --shadow-accent: rgba(109, 40, 217, 0.18);
+  --scroll: rgba(109, 40, 217, 0.2);
+  --scroll-hover: rgba(109, 40, 217, 0.38);
+}
+
+[data-theme="plum"] {
+  color-scheme: dark;
+  --bg: #140a1e;
+  --bg-soft: #1a0f26;
+  --panel: #22142f;
+  --panel-2: #2b1a3b;
+  --line: rgba(232, 121, 249, 0.16);
+  --line-strong: rgba(232, 121, 249, 0.34);
+  --text: #f6ecff;
+  --muted: #b9a3c9;
+  --faint: #8b7699;
+  --accent: #c026d3;
+  --accent-soft: #e879f9;
+  --accent-pale: #f5d0fe;
+
+  --surface: rgba(255, 255, 255, 0.04);
+  --hover: rgba(232, 121, 249, 0.1);
+  --sunken: rgba(0, 0, 0, 0.28);
+  --field: rgba(0, 0, 0, 0.42);
+  --scrim: rgba(10, 4, 16, 0.65);
+
+  --danger: 251 113 133;
+  --ok: 134 239 172;
+  --warn: 253 224 71;
+
+  --glow-a: rgba(232, 121, 249, 0.14);
+  --glow-b: rgba(192, 38, 211, 0.12);
+  --grid: rgba(245, 208, 254, 0.06);
+  --spot: rgba(232, 121, 249, 0.18);
+  --glass-a: rgba(42, 24, 58, 0.86);
+  --glass-b: rgba(26, 15, 38, 0.92);
+  --shadow-accent: rgba(232, 121, 249, 0.5);
+  --scroll: rgba(232, 121, 249, 0.24);
+  --scroll-hover: rgba(232, 121, 249, 0.45);
 }
 
 * {
@@ -36,15 +142,15 @@ body {
 .app-bg {
   background-color: var(--bg);
   background-image:
-    radial-gradient(1000px 560px at 50% -22%, rgba(139, 92, 246, 0.12), transparent 62%),
-    radial-gradient(820px 540px at 6% 108%, rgba(109, 40, 217, 0.1), transparent 66%);
+    radial-gradient(1000px 560px at 50% -22%, var(--glow-a), transparent 62%),
+    radial-gradient(820px 540px at 6% 108%, var(--glow-b), transparent 66%);
 }
 
 .spotlight {
   background: radial-gradient(
     520px circle at var(--mx, -1000px) var(--my, -1000px),
-    rgba(139, 92, 246, 0.17),
-    rgba(139, 92, 246, 0.05) 38%,
+    var(--spot),
+    transparent 38%,
     transparent 66%
   );
   transition: opacity 0.45s ease;
@@ -52,20 +158,20 @@ body {
 
 .grid-overlay {
   background-image:
-    linear-gradient(to right, rgba(196, 181, 253, 0.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(196, 181, 253, 0.055) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
   background-size: 46px 46px;
   -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 10%, transparent 74%);
   mask-image: radial-gradient(ellipse at 50% 0%, black 10%, transparent 74%);
 }
 
 .glass {
-  background: linear-gradient(180deg, rgba(22, 18, 31, 0.86), rgba(13, 11, 20, 0.9));
+  background: linear-gradient(180deg, var(--glass-a), var(--glass-b));
   backdrop-filter: blur(14px);
 }
 
 .ring-accent {
-  box-shadow: 0 0 0 1px var(--line-strong), 0 18px 50px -22px rgba(139, 92, 246, 0.55);
+  box-shadow: 0 0 0 1px var(--line-strong), 0 18px 50px -22px var(--shadow-accent);
 }
 
 ::-webkit-scrollbar {
@@ -76,13 +182,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 122, 255, 0.22);
+  background: var(--scroll);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 122, 255, 0.42);
+  background: var(--scroll-hover);
   background-clip: content-box;
 }
 

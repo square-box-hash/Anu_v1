@@ -310,6 +310,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const abortRef = useRef(false);
   const profileReadyRef = useRef<Promise<void> | null>(null);
   const knownCloudIdsRef = useRef<Set<string>>(new Set());
+  const titledChatIdsRef = useRef<Set<string>>(new Set());
   const deletedChatIdsRef = useRef<Set<string>>(new Set());
 
   const userIdRef = useRef<string | undefined>(userId);
@@ -608,6 +609,55 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [user, canCloudSync, syncChatToCloud],
   );
 
+  /**
+   * Names a chat from its first exchange, at most 5 words, on the smallest fast
+   * model. Runs once per chat, only while the title is still the auto-derived
+   * one — so a user rename is never overwritten.
+   */
+  const maybeTitleChat = useCallback(
+    async (chatId: string) => {
+      if (titledChatIdsRef.current.has(chatId)) return;
+      const chat = stateRef.current.chats.find((c) => c.id === chatId);
+      if (!chat) return;
+
+      const userTurns = chat.messages.filter((m) => m.role === "user");
+      const answered = chat.messages.filter(
+        (m) => m.role === "assistant" && !m.error && !m.pending && m.content.trim().length > 0,
+      );
+      if (userTurns.length !== 1 || answered.length !== 1) return;
+
+      // Untouched? Only then is this our title to replace.
+      const derived = titleFrom(userTurns[0].content || "New chat");
+      if (chat.title !== derived) return;
+
+      titledChatIdsRef.current.add(chatId);
+      try {
+        const res = await fetch("/api/title", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: chat.messages.slice(0, 2).map((m) => ({
+              role: m.role,
+              content: m.content.slice(0, 1200),
+            })),
+          }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { title?: string | null };
+        const title = data.title?.trim();
+        if (!title) return;
+
+        // The user may have renamed the chat while the model was answering.
+        const current = stateRef.current.chats.find((c) => c.id === chatId);
+        if (!current || current.title !== derived) return;
+        renameChat(chatId, title);
+      } catch {
+        /* a title is cosmetic — never surface a failure for it */
+      }
+    },
+    [renameChat],
+  );
+
   const clearAll = useCallback(() => {
     const idsToDelete = [...knownCloudIdsRef.current];
     for (const id of idsToDelete) deletedChatIdsRef.current.add(id);
@@ -852,8 +902,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       const latestChat = buildFinalizedChat(finalPatch);
       if (latestChat) void syncChatToCloud(latestChat).catch(() => {});
+      if (!hadError && !abortRef.current) void maybeTitleChat(chatId);
     },
-    [patchMessage, syncChatToCloud],
+    [patchMessage, syncChatToCloud, maybeTitleChat],
   );
 
   const send = useCallback(

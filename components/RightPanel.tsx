@@ -78,7 +78,7 @@ function SkillsTab() {
           </span>
           <button
             onClick={() => void store.refreshRepoSkills()}
-            className="ml-auto rounded-md p-1 text-faint transition-colors hover:bg-white/5 hover:text-ink"
+            className="ml-auto rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-ink"
             title="Rescan skills folder"
             aria-label="Rescan skills folder"
           >
@@ -106,7 +106,7 @@ function SkillsTab() {
                   key={skill.slug}
                   className={cx(
                     "rounded-xl border transition-colors",
-                    enabled ? "border-accent/35 bg-accent/[0.07]" : "border-line bg-white/[0.02] hover:border-linestrong",
+                    enabled ? "border-accent/35 bg-accent/[0.07]" : "border-line bg-surface hover:border-linestrong",
                   )}
                 >
                   <div className="flex items-start gap-2 p-2.5">
@@ -129,7 +129,7 @@ function SkillsTab() {
                     {skill.files.slice(0, 2).map((file) => (
                       <span
                         key={file}
-                        className="max-w-[130px] truncate rounded border border-line bg-black/25 px-1.5 py-[1px] font-mono text-[9px] text-muted"
+                        className="max-w-[130px] truncate rounded border border-line bg-sunken px-1.5 py-[1px] font-mono text-[9px] text-muted"
                       >
                         {file}
                       </span>
@@ -139,7 +139,7 @@ function SkillsTab() {
                     ) : null}
                     <button
                       onClick={() => void togglePreview(skill.slug)}
-                      className="ml-auto rounded px-1.5 py-[2px] text-[10px] text-faint transition-colors hover:bg-white/5 hover:text-accent-pale"
+                      className="ml-auto rounded px-1.5 py-[2px] text-[10px] text-faint transition-colors hover:bg-hover hover:text-accent-pale"
                     >
                       {open ? "Hide" : "Preview"}
                     </button>
@@ -176,7 +176,7 @@ function SkillsTab() {
                 key={skill.id}
                 className={cx(
                   "flex items-start gap-2 rounded-xl border p-2.5 transition-colors",
-                  skill.enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-white/[0.02]",
+                  skill.enabled ? "border-accent/30 bg-accent/[0.06]" : "border-line bg-surface",
                 )}
               >
                 <div className="min-w-0 flex-1">
@@ -188,7 +188,7 @@ function SkillsTab() {
                 <div className="flex shrink-0 items-center gap-0.5">
                   <button
                     onClick={() => store.removeSkill(skill.id)}
-                    className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
+                    className="rounded p-1 text-faint hover:bg-danger/15 hover:text-danger"
                     aria-label={`Remove ${skill.name}`}
                   >
                     <Trash className="h-3 w-3" />
@@ -200,7 +200,7 @@ function SkillsTab() {
           </div>
         ) : null}
 
-        <div className="space-y-1.5 rounded-xl border border-line bg-black/25 p-2.5">
+        <div className="space-y-1.5 rounded-xl border border-line bg-sunken p-2.5">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -279,7 +279,7 @@ function ConnectorsTab() {
       ) : (
         <div className="space-y-1.5">
           {store.servers.map((server) => (
-            <div key={server.id} className="rounded-xl border border-line bg-white/[0.02] p-2.5">
+            <div key={server.id} className="rounded-xl border border-line bg-surface p-2.5">
               <div className="flex items-start gap-2">
                 <div className="mt-1">
                   <StatusDot status={server.enabled ? server.status : "disconnected"} />
@@ -287,7 +287,7 @@ function ConnectorsTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate font-mono text-[12px] text-ink">{server.name}</span>
-                    <span className="rounded border border-line bg-black/30 px-1 font-mono text-[8.5px] uppercase tracking-wider text-muted">
+                    <span className="rounded border border-line bg-sunken px-1 font-mono text-[8.5px] uppercase tracking-wider text-muted">
                       {server.transport}
                     </span>
                     {server.tools?.length ? (
@@ -300,14 +300,14 @@ function ConnectorsTab() {
                     {server.target}
                   </p>
                   {server.error ? (
-                    <p className="mt-1 break-words text-[10.5px] leading-relaxed text-rose-300/80">{server.error}</p>
+                    <p className="mt-1 break-words text-[10.5px] leading-relaxed text-danger">{server.error}</p>
                   ) : null}
                   {server.tools?.length ? (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {server.tools.slice(0, 8).map((tool) => (
                         <span
                           key={tool}
-                          className="rounded border border-line bg-black/25 px-1.5 py-[1px] font-mono text-[9.5px] text-muted"
+                          className="rounded border border-line bg-sunken px-1.5 py-[1px] font-mono text-[9.5px] text-muted"
                         >
                           {tool}
                         </span>
@@ -321,7 +321,7 @@ function ConnectorsTab() {
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     onClick={() => void store.refreshServer(server.id)}
-                    className="rounded p-1 text-faint transition-colors hover:bg-white/10 hover:text-ink"
+                    className="rounded p-1 text-faint transition-colors hover:bg-hover hover:text-ink"
                     aria-label={`Check ${server.name}`}
                     title="Check connection and list tools"
                   >
@@ -329,7 +329,7 @@ function ConnectorsTab() {
                   </button>
                   <button
                     onClick={() => store.removeServer(server.id)}
-                    className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
+                    className="rounded p-1 text-faint hover:bg-danger/15 hover:text-danger"
                     aria-label={`Remove ${server.name}`}
                   >
                     <Trash className="h-3 w-3" />
@@ -342,7 +342,7 @@ function ConnectorsTab() {
         </div>
       )}
 
-      <div className="rounded-xl border border-line bg-black/25 p-2.5">
+      <div className="rounded-xl border border-line bg-sunken p-2.5">
         <SectionTitle right={<span className="font-mono text-[9px] uppercase tracking-wider text-faint">fastest</span>}>
           Paste a config
         </SectionTitle>
@@ -371,7 +371,7 @@ function ConnectorsTab() {
         {feedback ? <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">{feedback}</p> : null}
       </div>
 
-      <div className="rounded-xl border border-line bg-black/25 p-2.5">
+      <div className="rounded-xl border border-line bg-sunken p-2.5">
         <SectionTitle>Add by hand</SectionTitle>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {PRESETS.map((preset) => (
@@ -441,7 +441,7 @@ function HarnessTab() {
         </p>
       </div>
 
-      <div className="space-y-2.5 rounded-xl border border-line bg-white/[0.02] p-3">
+      <div className="space-y-2.5 rounded-xl border border-line bg-surface p-3">
         <div className="flex items-center justify-between">
           <span className="text-[12px] text-ink">Enable bridge</span>
           <Toggle checked={h.enabled} onChange={(v) => store.updateHarness({ enabled: v })} label="Enable harness" />
@@ -505,12 +505,12 @@ function HarnessTab() {
           {h.subagents.map((s) => (
             <span
               key={s}
-              className="inline-flex items-center gap-1 rounded-full border border-line bg-white/[0.03] px-2 py-[3px] font-mono text-[10px] text-muted"
+              className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-[3px] font-mono text-[10px] text-muted"
             >
               {s}
               <button
                 onClick={() => store.updateHarness({ subagents: h.subagents.filter((x) => x !== s) })}
-                className="text-faint hover:text-rose-300"
+                className="text-faint hover:text-danger"
                 aria-label={`Remove ${s}`}
               >
                 <X className="h-2.5 w-2.5" />
@@ -658,7 +658,7 @@ function SettingsTab() {
                   "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 transition-colors",
                   m.id === store.settings.model
                     ? "border-accent/40 bg-accent/10"
-                    : "border-line bg-white/[0.02] hover:border-linestrong",
+                    : "border-line bg-surface hover:border-linestrong",
                 )}
               >
                 <button
@@ -674,7 +674,7 @@ function SettingsTab() {
                   <span className="flex items-center gap-1.5">
                     <span className="truncate text-[12px] text-ink">{m.label}</span>
                     {m.badge && (
-                      <span className="shrink-0 rounded border border-line bg-black/30 px-1 py-[0.5px] font-mono text-[8.5px] uppercase tracking-wider text-accent-pale">
+                      <span className="shrink-0 rounded border border-line bg-sunken px-1 py-[0.5px] font-mono text-[8.5px] uppercase tracking-wider text-accent-pale">
                         {m.badge}
                       </span>
                     )}
@@ -685,7 +685,7 @@ function SettingsTab() {
                   <button
                     type="button"
                     onClick={() => store.removeCustomModel(m.id)}
-                    className="rounded p-1 text-faint hover:bg-rose-500/15 hover:text-rose-300"
+                    className="rounded p-1 text-faint hover:bg-danger/15 hover:text-danger"
                     aria-label={`Remove ${m.label}`}
                   >
                     <Trash className="h-3 w-3" />
@@ -698,13 +698,13 @@ function SettingsTab() {
         </div>
       </div>
 
-      <div className="space-y-2.5 rounded-xl border border-line bg-white/[0.02] p-3">
+      <div className="space-y-2.5 rounded-xl border border-line bg-surface p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <Cpu className="h-3.5 w-3.5 text-accent-soft" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Orchestration</span>
           </div>
-          <span className="rounded border border-line bg-black/30 px-1.5 py-[1px] font-mono text-[9px] text-muted">
+          <span className="rounded border border-line bg-sunken px-1.5 py-[1px] font-mono text-[9px] text-muted">
             4-step
           </span>
         </div>
@@ -764,7 +764,7 @@ function SettingsTab() {
           <select
             value={orch.translateTargetLanguage}
             onChange={(e) => store.updateOrchestration({ translateTargetLanguage: e.target.value })}
-            className="rounded border border-line bg-black/40 px-2 py-0.5 text-[11px] text-ink outline-none"
+            className="rounded border border-line bg-field px-2 py-0.5 text-[11px] text-ink outline-none"
           >
             {TRANSLATE_LANGUAGES.map((l) => (
               <option key={l.code} value={l.code} className="bg-[#120e1e]">
@@ -776,7 +776,7 @@ function SettingsTab() {
 
         <div className="flex items-center justify-between border-t border-line/70 pt-2 text-[10.5px]">
           <span className="text-faint">Memory ({orch.roles.memory})</span>
-          <span className="rounded border border-line bg-black/30 px-1.5 py-[1px] font-mono text-[9.5px] text-emerald-300/80">
+          <span className="rounded border border-line bg-sunken px-1.5 py-[1px] font-mono text-[9.5px] text-ok/80">
             standby · ready
           </span>
         </div>
@@ -784,7 +784,7 @@ function SettingsTab() {
         <button
           type="button"
           onClick={() => setRolesOpen((v) => !v)}
-          className="flex w-full items-center justify-between rounded-lg border border-line bg-black/25 px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-ink"
+          className="flex w-full items-center justify-between rounded-lg border border-line bg-sunken px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-ink"
         >
           <span className="inline-flex items-center gap-1.5">
             <Sliders className="h-3 w-3 text-accent-soft" />
@@ -824,13 +824,13 @@ function SettingsTab() {
         )}
       </div>
 
-      <div className="space-y-2 rounded-xl border border-line bg-black/25 p-2.5">
+      <div className="space-y-2 rounded-xl border border-line bg-sunken p-2.5">
         <div className="flex items-center justify-between">
           <SectionTitle>Custom Model / API</SectionTitle>
           <button
             type="button"
             onClick={() => setCustomOpen((v) => !v)}
-            className="rounded px-1.5 py-0.5 text-[10.5px] text-accent-soft hover:bg-white/5"
+            className="rounded px-1.5 py-0.5 text-[10.5px] text-accent-soft hover:bg-hover"
           >
             {customOpen ? "Cancel" : "+ Add model"}
           </button>
@@ -926,7 +926,7 @@ function SettingsTab() {
         />
       </Field>
 
-      <div className="rounded-xl border border-line bg-black/25 p-2.5">
+      <div className="rounded-xl border border-line bg-sunken p-2.5">
         <SectionTitle>Connection</SectionTitle>
         <div className="mt-2 space-y-1.5 font-mono text-[10.5px]">
           <div className="flex items-center justify-between gap-2">
@@ -964,7 +964,7 @@ function SettingsTab() {
 
         <button
           onClick={store.clearAll}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 py-2 text-[11.5px] font-medium text-rose-200 transition-colors hover:bg-rose-500/20"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-danger/30 bg-danger/10 py-2 text-[11.5px] font-medium text-danger transition-colors hover:bg-danger/15"
         >
           <X className="h-3.5 w-3.5" />
           Clear all chats
@@ -1011,7 +1011,7 @@ export default function RightPanel({
             onClick={() => onTabChange(t.id)}
             className={cx(
               "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition-colors",
-              tab === t.id ? "bg-accent/15 text-accent-pale" : "text-muted hover:bg-white/[0.04] hover:text-ink",
+              tab === t.id ? "bg-accent/15 text-accent-pale" : "text-muted hover:bg-hover hover:text-ink",
             )}
           >
             {t.icon}
@@ -1020,7 +1020,7 @@ export default function RightPanel({
         ))}
         <button
           onClick={onClose}
-          className="ml-0.5 rounded-lg p-1.5 text-faint transition-colors hover:bg-white/5 hover:text-ink xl:hidden"
+          className="ml-0.5 rounded-lg p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink xl:hidden"
           aria-label="Close panel"
         >
           <X className="h-3.5 w-3.5" />
