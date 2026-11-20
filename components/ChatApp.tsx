@@ -159,7 +159,7 @@ function AuthGate() {
 
       {!ready ? (
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3">
-          <Logo className="h-11 w-11 animate-pulse drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]" />
+          <Logo className="h-11 w-11 animate-pulse" />
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-faint">Loading workspace…</p>
         </div>
       ) : !user ? (
