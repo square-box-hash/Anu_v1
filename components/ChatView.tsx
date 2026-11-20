@@ -9,15 +9,49 @@ import { dayPart, greetingCacheKey, localNudge } from "@/lib/greeting";
 import Message from "./Message";
 import Composer from "./Composer";
 import type { PanelTab } from "./RightPanel";
-import { Bolt, Chevron, Layers, Menu, Sparkles, Terminal } from "./Icons";
+import {
+  Bolt,
+  BookOpen,
+  Chevron,
+  Cpu,
+  Database,
+  File,
+  Globe,
+  Image as ImageIcon,
+  Languages,
+  Layers,
+  Link,
+  Mail,
+  Menu,
+  Mic,
+  Search,
+  Sliders,
+  Sparkles,
+  Terminal,
+} from "./Icons";
+import { pickSuggestions } from "@/lib/suggestions";
+import type { SuggestionIcon } from "@/lib/suggestions";
 import { Pill, StatusDot } from "./ui";
 
-const SUGGESTIONS = [
-  { icon: <Sparkles className="h-3.5 w-3.5" />, title: "Solve chemistry doubts", body: "Explain SN1 vs SN2 reaction mechanisms with energy diagrams and stereochemistry." },
-  { icon: <Terminal className="h-3.5 w-3.5" />, title: "Architect & delegate code", body: "Design a multi-module TypeScript queue and write focused unit tests for edge cases." },
-  { icon: <Layers className="h-3.5 w-3.5" />, title: "Extract structured JSON", body: "Drop a large log or document and compress key facts into clean typed JSON." },
-  { icon: <Bolt className="h-3.5 w-3.5" />, title: "Casual quick chat", body: "Brainstorm weekend project ideas I can build and share with 20–30 friends." },
-];
+/** Icon per suggestion key, so the pool stays free of JSX. */
+const SUGGESTION_ICONS: Record<SuggestionIcon, React.ReactNode> = {
+  sparkles: <Sparkles className="h-3.5 w-3.5" />,
+  terminal: <Terminal className="h-3.5 w-3.5" />,
+  layers: <Layers className="h-3.5 w-3.5" />,
+  bolt: <Bolt className="h-3.5 w-3.5" />,
+  file: <File className="h-3.5 w-3.5" />,
+  database: <Database className="h-3.5 w-3.5" />,
+  globe: <Globe className="h-3.5 w-3.5" />,
+  languages: <Languages className="h-3.5 w-3.5" />,
+  mic: <Mic className="h-3.5 w-3.5" />,
+  cpu: <Cpu className="h-3.5 w-3.5" />,
+  search: <Search className="h-3.5 w-3.5" />,
+  mail: <Mail className="h-3.5 w-3.5" />,
+  book: <BookOpen className="h-3.5 w-3.5" />,
+  image: <ImageIcon className="h-3.5 w-3.5" />,
+  link: <Link className="h-3.5 w-3.5" />,
+  sliders: <Sliders className="h-3.5 w-3.5" />,
+};
 
 export default function ChatView({
   onOpenSidebar,
@@ -35,6 +69,8 @@ export default function ChatView({
   const activeSkills = store.skills.filter((s) => s.enabled);
   const { user } = useAuth();
   const greeting = greetingFor(user?.displayName || user?.email?.split("@")[0]);
+  // Rotates daily; stable within a session.
+  const suggestions = React.useMemo(() => pickSuggestions(), []);
 
   const [atBottom, setAtBottom] = useState(true);
 
@@ -180,14 +216,14 @@ export default function ChatView({
             <Composer variant="hero" />
 
             <div className="mt-9 grid gap-2 sm:mt-12 sm:grid-cols-2">
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <button
-                  key={s.title}
+                  key={s.id}
                   onClick={() => void store.send(s.body)}
                   className="group flex items-start gap-3 rounded-xl border border-line/70 bg-surface p-3 text-left transition-all hover:border-accent/40 hover:bg-accent/[0.05]"
                 >
                   <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-line text-faint transition-colors group-hover:border-accent/40 group-hover:text-accent-soft">
-                    {s.icon}
+                    {SUGGESTION_ICONS[s.icon]}
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[12.5px] font-medium text-ink transition-colors group-hover:text-accent-pale">
