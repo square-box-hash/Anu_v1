@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
 import { MODELS, findModel } from "@/lib/types";
 import { cx, greetingFor } from "@/lib/utils";
+import { dayPart, greetingCacheKey, localNudge } from "@/lib/greeting";
 import Message from "./Message";
 import Composer from "./Composer";
 import type { PanelTab } from "./RightPanel";
@@ -36,6 +37,58 @@ export default function ChatView({
   const greeting = greetingFor(user?.displayName || user?.email?.split("@")[0]);
 
   const [atBottom, setAtBottom] = useState(true);
+
+  // The line under the greeting: local and instant, then swapped for a
+  // generated one. Cached per part-of-day so opening the app repeatedly costs
+  // one call a day at most.
+  const [nudge, setNudge] = useState<string | null>(null);
+  const nudgeAsked = useRef(false);
+
+  useEffect(() => {
+    if (nudgeAsked.current) return;
+    nudgeAsked.current = true;
+
+    const now = new Date();
+    const cacheKey = greetingCacheKey(now);
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        setNudge(cached);
+        return;
+      }
+    } catch {
+      /* storage blocked — fall through to the local line */
+    }
+
+    setNudge(localNudge(now));
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/greeting", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: user?.displayName ?? "",
+            part: dayPart(now),
+            weekday: now.toLocaleDateString(undefined, { weekday: "long" }),
+          }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { line?: string | null };
+        const line = data.line?.trim();
+        if (!line) return;
+        setNudge(line);
+        try {
+          localStorage.setItem(cacheKey, line);
+        } catch {
+          /* not worth a fallback */
+        }
+      } catch {
+        /* keep the local line */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -110,11 +163,18 @@ export default function ChatView({
       <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
         {messages.length === 0 ? (
           <div className="mx-auto flex min-h-full w-full max-w-[860px] flex-col justify-center px-4 py-10 sm:px-8 sm:py-14">
-            <div className="animate-rise mb-6 flex items-center justify-center gap-2.5 sm:mb-7">
-              <Sparkles className="h-6 w-6 shrink-0 text-accent-soft sm:h-7 sm:w-7" />
-              <h1 className="text-center font-serif text-[28px] leading-tight tracking-[-0.01em] text-ink sm:text-[38px]">
-                {greeting}
-              </h1>
+            <div className="animate-rise mb-6 text-center sm:mb-7">
+              <div className="flex items-center justify-center gap-2.5">
+                <Sparkles className="h-6 w-6 shrink-0 text-accent-soft sm:h-7 sm:w-7" />
+                <h1 className="font-serif text-[28px] leading-tight tracking-[-0.01em] text-ink sm:text-[38px]">
+                  {greeting}
+                </h1>
+              </div>
+              {nudge && (
+                <p className="mx-auto mt-2.5 max-w-[440px] text-[12.5px] leading-relaxed text-muted">
+                  {nudge}
+                </p>
+              )}
             </div>
 
             <Composer variant="hero" />
