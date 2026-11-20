@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
 import { MODELS, findModel } from "@/lib/types";
-import { cx } from "@/lib/utils";
+import { cx, greetingFor } from "@/lib/utils";
 import Message from "./Message";
-import Composer, { focusComposer } from "./Composer";
+import Composer from "./Composer";
 import type { PanelTab } from "./RightPanel";
-import { ArrowRight, Bolt, Chevron, Layers, Menu, Sparkles, Terminal } from "./Icons";
+import { Bolt, Chevron, Layers, Menu, Sparkles, Terminal } from "./Icons";
 import { Pill, StatusDot } from "./ui";
 
 const SUGGESTIONS = [
@@ -31,6 +32,8 @@ export default function ChatView({
   const lastContent = messages[messages.length - 1]?.content ?? "";
   const model = findModel(store.settings.model, store.settings.customModels) ?? MODELS[1] ?? MODELS[0];
   const activeSkills = store.skills.filter((s) => s.enabled);
+  const { user } = useAuth();
+  const greeting = greetingFor(user?.displayName || user?.email?.split("@")[0]);
 
   const [atBottom, setAtBottom] = useState(true);
 
@@ -106,44 +109,15 @@ export default function ChatView({
       <div className="relative min-h-0 flex-1">
       <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center px-5 py-10 sm:px-10 sm:py-14">
-            <div className="animate-rise">
-              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
-                <span className="h-1 w-1 rounded-full bg-accent-soft" />
-                {model.id}
-              </div>
-
-              <h1 className="font-serif text-[34px] font-normal leading-[1.06] tracking-[-0.02em] text-ink transition-colors sm:text-[52px] lg:text-[62px]">
-                <span className="transition-colors duration-300 hover:text-accent-pale">Talk to Anu</span> about
-                <span className="mt-1 block pr-3 italic leading-[1.06]">
-                  <span className="bg-gradient-to-r from-accent-soft via-fuchsia-300 to-accent-pale bg-clip-text text-transparent">
-                    anything at all
-                  </span>
-                </span>
+          <div className="mx-auto flex min-h-full w-full max-w-[860px] flex-col justify-center px-4 py-10 sm:px-8 sm:py-14">
+            <div className="animate-rise mb-6 flex items-center justify-center gap-2.5 sm:mb-7">
+              <Sparkles className="h-6 w-6 shrink-0 text-accent-soft sm:h-7 sm:w-7" />
+              <h1 className="text-center font-serif text-[28px] leading-tight tracking-[-0.01em] text-ink sm:text-[38px]">
+                {greeting}
               </h1>
-
-              <p className="mt-5 max-w-[540px] text-[14px] leading-[1.7] text-muted sm:mt-7 sm:text-[15px]">
-                Ask a question, drop a file, arm a skill or connect an MCP server. Answers stream back with
-                markdown, code blocks, tables and maths rendered properly.
-              </p>
-
-              <div className="mt-7 flex flex-wrap items-center gap-3 sm:mt-9">
-                <button
-                  onClick={() => focusComposer()}
-                  className="group inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-medium text-white sm:px-5 sm:py-3 sm:text-[13.5px] shadow-[0_0_30px_-8px_rgba(139,92,246,0.9)] transition-all hover:bg-accent-soft hover:shadow-[0_0_40px_-6px_rgba(167,139,250,0.9)]"
-                >
-                  Start typing
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </button>
-                <button
-                  onClick={() => onOpenSection("connectors")}
-                  className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-[13px] font-medium text-ink sm:px-5 sm:py-3 sm:text-[13.5px] transition-colors hover:border-accent/50 hover:text-accent-pale"
-                >
-                  <Terminal className="h-3.5 w-3.5" />
-                  Connect a tool
-                </button>
-              </div>
             </div>
+
+            <Composer variant="hero" />
 
             <div className="mt-9 grid gap-2 sm:mt-12 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
@@ -196,9 +170,11 @@ export default function ChatView({
         )}
       </div>
 
-      <div className="shrink-0">
-        <Composer />
-      </div>
+      {messages.length > 0 && (
+        <div className="shrink-0">
+          <Composer />
+        </div>
+      )}
     </main>
   );
 }

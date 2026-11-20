@@ -48,7 +48,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     }
   };
   return (
-    <div className="my-3 overflow-hidden rounded-xl border border-line bg-scrim">
+    <div className="my-3 overflow-hidden rounded-xl border border-line bg-sunken">
       <div className="flex items-center justify-between border-b border-line bg-surface px-3 py-1.5">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">{lang || "code"}</span>
         <button
@@ -160,7 +160,7 @@ const components: Components = {
       const code = String(props.children ?? "").replace(/\n$/, "");
       return <CodeBlock lang={lang} code={code} />;
     }
-    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-scrim p-3">{children}</pre>;
+    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-sunken p-3">{children}</pre>;
   },
   code({ className, children }) {
     return (
@@ -351,7 +351,7 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6">
       <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
-      <div className="relative flex max-h-[88dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-2xl border border-line bg-[#0d0a16] shadow-2xl sm:max-h-[86vh] sm:rounded-2xl">
+      <div className="relative flex max-h-[88dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-2xl border border-line bg-panel shadow-2xl sm:max-h-[86vh] sm:rounded-2xl">
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
           <Cpu className="h-3.5 w-3.5 text-accent-soft" />
           <h2 className="min-w-0 truncate text-[12.5px] font-semibold text-ink">How this reply was produced</h2>
@@ -590,7 +590,7 @@ export default function Message({
           onMouseDown={(e) => e.preventDefault()}
           onClick={quoteSelection}
           style={{ left: selection.x, top: Math.max(selection.y - 38, 8) }}
-          className="fixed z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-accent/40 bg-[#171126] px-2.5 py-1.5 text-[11px] font-medium text-accent-pale shadow-xl transition-colors hover:bg-accent/20"
+          className="fixed z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-accent/40 bg-panel px-2.5 py-1.5 text-[11px] font-medium text-accent-pale shadow-xl transition-colors hover:bg-accent/20"
         >
           <ArrowRight className="h-3 w-3 -rotate-180" />
           Reply to this
@@ -602,7 +602,7 @@ export default function Message({
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
           <div
             style={{ left: menu.x, top: menu.y }}
-            className="fixed z-50 w-52 overflow-hidden rounded-xl border border-line bg-[#120e1e] py-1 shadow-2xl"
+            className="fixed z-50 w-52 overflow-hidden rounded-xl border border-line bg-panel py-1 shadow-2xl"
           >
             {[
               { label: "Copy message", run: () => void copy() },

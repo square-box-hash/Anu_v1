@@ -27,7 +27,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     }
   };
   return (
-    <div className="my-3 overflow-hidden rounded-xl border border-line bg-scrim">
+    <div className="my-3 overflow-hidden rounded-xl border border-line bg-sunken">
       <div className="flex items-center justify-between border-b border-line bg-surface px-3 py-1.5">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">{lang || "code"}</span>
         <button
@@ -54,7 +54,7 @@ const components: Components = {
       const code = String(props.children ?? "").replace(/\n$/, "");
       return <CodeBlock lang={lang} code={code} />;
     }
-    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-scrim p-3">{children}</pre>;
+    return <pre className="my-3 overflow-x-auto rounded-xl border border-line bg-sunken p-3">{children}</pre>;
   },
   code({ className, children }) {
     return (

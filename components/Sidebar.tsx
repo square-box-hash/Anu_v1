@@ -54,7 +54,7 @@ export default function Sidebar({
   onCollapse?: () => void;
   onOpenAccount: () => void;
 }) {
-  const { user, hasPasswordProvider, signOutUser } = useAuth();
+  const { user, signOutUser } = useAuth();
   const store = useStore();
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -73,11 +73,6 @@ export default function Sidebar({
 
   const groups = groupByDay(filtered);
   const displayName = user?.displayName || user?.email?.split("@")[0] || "Account";
-  const subtitle = !hasPasswordProvider
-    ? "Set up password"
-    : user?.emailVerified
-      ? (user.email ?? "Verified account")
-      : "Verify email to sync";
   const activeSection = SECTIONS.find((s) => s.id === section);
   const agents = store.harness.subagents;
 
@@ -324,14 +319,18 @@ export default function Sidebar({
         <div className="mt-0.5 flex items-center gap-1">
           <button
             onClick={onOpenAccount}
+            title={displayName}
+            aria-label={`Account: ${displayName}`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-hover"
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-accent/20 text-[10px] font-semibold text-accent-pale">
-              {initialsFor(displayName)}
-            </span>
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate text-[12px] font-medium text-ink">{displayName}</span>
-              <span className="block truncate text-[10px] text-faint">{subtitle}</span>
+            {/* Just the picture — the name and address live in the account dialog. */}
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-accent/20 text-[10px] font-semibold text-accent-pale">
+              {user?.photoURL ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.photoURL} alt="" className="h-full w-full object-cover" />
+              ) : (
+                initialsFor(displayName)
+              )}
             </span>
           </button>
           <button

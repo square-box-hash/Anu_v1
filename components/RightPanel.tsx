@@ -767,7 +767,7 @@ function SettingsTab() {
             className="rounded border border-line bg-field px-2 py-0.5 text-[11px] text-ink outline-none"
           >
             {TRANSLATE_LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code} className="bg-[#120e1e]">
+              <option key={l.code} value={l.code} className="bg-panel">
                 {l.label} ({l.code})
               </option>
             ))}
@@ -813,7 +813,7 @@ function SettingsTab() {
                   {allModels
                     .filter((m) => m.id !== "auto" && m.modality !== "embedding")
                     .map((m) => (
-                      <option key={m.id} value={m.id} className="bg-[#120e1e]">
+                      <option key={m.id} value={m.id} className="bg-panel">
                         {m.label} ({m.id})
                       </option>
                     ))}
@@ -846,8 +846,8 @@ function SettingsTab() {
               onChange={(e) => setCProvider(e.target.value as "gemini" | "openai-compatible")}
               className={inputClass}
             >
-              <option value="gemini" className="bg-[#120e1e]">Server Gemini / Gemma model ID</option>
-              <option value="openai-compatible" className="bg-[#120e1e]">Custom OpenAI-compatible HTTP endpoint</option>
+              <option value="gemini" className="bg-panel">Server Gemini / Gemma model ID</option>
+              <option value="openai-compatible" className="bg-panel">Custom OpenAI-compatible HTTP endpoint</option>
             </select>
             <input
               value={cId}
@@ -866,11 +866,11 @@ function SettingsTab() {
               onChange={(e) => setCRole(e.target.value as ModelRole)}
               className={inputClass}
             >
-              <option value="general" className="bg-[#120e1e]">Role: General</option>
-              <option value="planner" className="bg-[#120e1e]">Role: Planner</option>
-              <option value="subagent_quality" className="bg-[#120e1e]">Role: Subagent / Chat</option>
-              <option value="context" className="bg-[#120e1e]">Role: Context / JSON</option>
-              <option value="specialist" className="bg-[#120e1e]">Role: Specialist</option>
+              <option value="general" className="bg-panel">Role: General</option>
+              <option value="planner" className="bg-panel">Role: Planner</option>
+              <option value="subagent_quality" className="bg-panel">Role: Subagent / Chat</option>
+              <option value="context" className="bg-panel">Role: Context / JSON</option>
+              <option value="specialist" className="bg-panel">Role: Specialist</option>
             </select>
             {cProvider === "openai-compatible" && (
               <>

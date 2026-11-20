@@ -58,7 +58,8 @@ function base64ToFloat32(base64: string): Float32Array {
   return out;
 }
 
-export default function Composer() {
+export default function Composer({ variant = "dock" }: { variant?: "dock" | "hero" }) {
+  const hero = variant === "hero";
   const store = useStore();
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Attachment[]>([]);
@@ -218,7 +219,7 @@ export default function Composer() {
   const enabledServers = store.servers.filter((s) => s.enabled).length;
 
   return (
-    <div className="px-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-1 sm:px-6 sm:pb-4">
+    <div className={hero ? "px-0" : "px-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-1 sm:px-6 sm:pb-4"}>
       <div className="mx-auto w-full max-w-[820px]">
         <div
           onDragOver={(e) => {
@@ -312,7 +313,7 @@ export default function Composer() {
                   ? "Drop files to attach…"
                   : "Message Anu — Shift + Enter for a new line"
             }
-            className="max-h-[200px] w-full resize-none bg-transparent px-4 pt-3.5 text-[14px] leading-relaxed text-ink outline-none placeholder:text-faint/80"
+            className={cx("max-h-[200px] w-full resize-none bg-transparent px-4 pt-3.5 text-[14px] leading-relaxed text-ink outline-none placeholder:text-faint/80", hero && "min-h-[72px] pt-4")}
           />
 
           <div className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2.5 pt-1">
@@ -434,7 +435,7 @@ export default function Composer() {
                   aria-label="Target translation language"
                 >
                   {TRANSLATE_LANGUAGES.map((l) => (
-                    <option key={l.code} value={l.code} className="bg-[#120e1e] text-ink">
+                    <option key={l.code} value={l.code} className="bg-panel text-ink">
                       {l.label}
                     </option>
                   ))}
@@ -485,9 +486,11 @@ export default function Composer() {
           </div>
         </div>
 
-        <p className="mt-2 text-center text-[10.5px] leading-relaxed text-faint/80">
-          Anu can make mistakes — double-check important details.
-        </p>
+        {!hero && (
+          <p className="mt-2 text-center text-[10.5px] leading-relaxed text-faint/80">
+            Anu can make mistakes — double-check important details.
+          </p>
+        )}
       </div>
     </div>
   );
