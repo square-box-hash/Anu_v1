@@ -49,6 +49,8 @@
   --shadow-accent: rgba(139, 92, 246, 0.55);
   --scroll: rgba(150, 122, 255, 0.22);
   --scroll-hover: rgba(150, 122, 255, 0.42);
+  /* Monochrome mark: a black logo would vanish on this canvas. */
+  --logo-filter: brightness(0) invert(1);
 }
 
 [data-theme="light"] {
@@ -85,6 +87,7 @@
   --shadow-accent: rgba(109, 40, 217, 0.18);
   --scroll: rgba(109, 40, 217, 0.2);
   --scroll-hover: rgba(109, 40, 217, 0.38);
+  --logo-filter: brightness(0);
 }
 
 [data-theme="plum"] {
@@ -121,6 +124,7 @@
   --shadow-accent: rgba(232, 121, 249, 0.5);
   --scroll: rgba(232, 121, 249, 0.24);
   --scroll-hover: rgba(232, 121, 249, 0.45);
+  --logo-filter: brightness(0) invert(1);
 }
 
 * {
