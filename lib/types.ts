@@ -79,7 +79,10 @@ export interface Chat {
 export interface Skill {
   id: string;
   name: string;
+  /** The one line that rides in the system prompt every turn. */
   description: string;
+  /** The full instructions: steps, do/don't, examples. Sent with the rule. */
+  rules?: string;
   enabled: boolean;
 }
 
@@ -135,7 +138,8 @@ export interface ChatRequest {
   systemPrompt?: string;
   temperature?: number;
   attachments?: { name: string; type: string; size: number; textContent?: string }[];
-  skills?: string[];
+  /** A bare string is an old one-liner; an object carries its rules too. */
+  skills?: (string | { name: string; description?: string; rules?: string })[];
   /** Slugs of workspace skills the user has enabled. */
   repoSkills?: string[];
   mcpServers?: {

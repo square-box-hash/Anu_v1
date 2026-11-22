@@ -146,7 +146,14 @@ function systemPromptFor(
   }
 
   if (body.skills?.length) {
-    blocks.push(`Inline instructions from the user — follow these when they apply:\n${body.skills.map((s) => `- ${s}`).join("\n")}`);
+    // A rule is a name, the one line that rides every turn, and its full rules.
+    const rendered = body.skills.map((skill) => {
+      if (typeof skill === "string") return `- ${skill}`;
+      const head = `- ${skill.name}${skill.description ? ` — ${skill.description}` : ""}`;
+      const rules = skill.rules?.trim();
+      return rules ? `${head}\n  ${rules.replace(/\n/g, "\n  ")}` : head;
+    });
+    blocks.push(`Inline instructions from the user — follow these when they apply:\n${rendered.join("\n")}`);
   }
 
   blocks.push(toolPolicyFor(tools));

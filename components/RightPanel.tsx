@@ -43,6 +43,7 @@ function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [rules, setRules] = useState("");
   const [preview, setPreview] = useState<Record<string, string>>({});
   const enabledCount = store.repoSkills.filter((skill) => store.enabledRepoSkills.includes(skill.slug)).length;
 
@@ -166,7 +167,8 @@ function SkillsTab() {
         </div>
 
         <p className="text-[10.5px] leading-relaxed text-faint/90">
-          One-liners that ride in the system prompt every turn. Keep them short.
+          The name and the one line ride in the system prompt every turn — keep the line short. The rules
+          are the full instructions and travel with it.
         </p>
 
         {store.skills.length > 0 ? (
@@ -180,10 +182,33 @@ function SkillsTab() {
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <span className="truncate text-[12px] font-medium text-ink">{skill.name}</span>
-                  {skill.description ? (
-                    <p className="mt-0.5 line-clamp-2 text-[10.5px] leading-relaxed text-faint">{skill.description}</p>
-                  ) : null}
+                  <input
+                    value={skill.name}
+                    onChange={(e) => store.updateSkill(skill.id, { name: e.target.value })}
+                    placeholder="Rule name"
+                    aria-label="Rule name"
+                    className="w-full bg-transparent text-[12px] font-medium text-ink outline-none placeholder:text-faint/70"
+                  />
+                  <input
+                    value={skill.description}
+                    onChange={(e) => store.updateSkill(skill.id, { description: e.target.value })}
+                    placeholder="One line — e.g. always answer with a table"
+                    aria-label="One line"
+                    className={cx(inputClass, "mt-1.5 text-[11px]")}
+                  />
+                  <details className="mt-1.5 rounded-lg border border-line bg-sunken px-2 py-1">
+                    <summary className="cursor-pointer list-none font-mono text-[9px] uppercase tracking-[0.12em] text-faint/80">
+                      rules · {skill.rules ? `${skill.rules.trim().split(/\s+/).length} words` : "none yet"}
+                    </summary>
+                    <textarea
+                      value={skill.rules ?? ""}
+                      onChange={(e) => store.updateSkill(skill.id, { rules: e.target.value })}
+                      rows={4}
+                      placeholder={"The full instructions — steps, what to do and not do, an example"}
+                      aria-label="Rules"
+                      className={cx(inputClass, "mt-1.5 resize-y font-mono text-[10.5px] leading-relaxed")}
+                    />
+                  </details>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
                   <button
@@ -204,20 +229,28 @@ function SkillsTab() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Rule name"
+            placeholder="Name — e.g. task scoping"
             className={inputClass}
           />
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="One line — e.g. always answer with a table"
+            placeholder="One line — e.g. restate the goal before any tool call"
             className={inputClass}
+          />
+          <textarea
+            value={rules}
+            onChange={(e) => setRules(e.target.value)}
+            rows={4}
+            placeholder={"Rules — the full instructions:\n1. Restate the goal in one sentence.\n2. Say what \"done\" looks like.\n3. Ask one question, or state the assumption."}
+            className={cx(inputClass, "resize-y font-mono text-[10.5px] leading-relaxed")}
           />
           <button
             onClick={() => {
-              store.addSkill(name, desc);
+              store.addSkill(name, desc, rules);
               setName("");
               setDesc("");
+              setRules("");
             }}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
           >
