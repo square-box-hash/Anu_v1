@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The deploy build starts with an install from package-lock.json, so run
+      # the same thing here: a dependency added to package.json without its
+      # lock entry fails on the pull request instead of on the deploy.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
