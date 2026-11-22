@@ -165,9 +165,19 @@ const components: Components = {
     );
   },
   img({ src, alt }) {
+    // Remote images (a search result, a page thumbnail) are plain <img>: no
+    // next/image domain list to maintain, and no-referrer so the host does not
+    // learn where the reader came from.
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={typeof src === "string" ? src : ""} alt={alt ?? ""} className="my-3 max-w-full rounded-xl border border-line" />
+      <img
+        src={typeof src === "string" ? src : ""}
+        alt={alt ?? ""}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        className="my-3 max-h-[420px] w-auto max-w-full rounded-xl border border-line bg-sunken object-contain"
+      />
     );
   },
 };

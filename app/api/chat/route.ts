@@ -48,6 +48,7 @@ const MARKDOWN_NOTE = [
   "- and 1. lists, > quotes, [links](https://example.com), ~~strikethrough~~,",
   "tables for comparisons and specs (header row, then a |---|:--:| separator row),",
   "- [ ] task lists for steps, and $inline$ / $$display$$ maths (KaTeX).",
+  "An image URL that came back from a tool renders inline with ![what it shows](https://…); use it when the user asked to see something.",
   "Keep prose first: a table or a code fence carries data, it does not replace the explanation.",
 ].join(" ");
 
@@ -84,6 +85,20 @@ function toolPolicyFor(tools: McpTool[]): string {
     "- Answer from what the tool returned and say where it came from. If it fails or returns nothing,",
     "say that instead of filling the gap from memory.",
     "- Do not call a tool to restate something you already know and that cannot have changed.",
+  ].join("\n");
+}
+
+/**
+ * Guidance the user attached to one MCP server. It stays next to the server it
+ * describes — "search the city name too" only makes sense for the news tool —
+ * so every server can carry its own rules instead of one global blob.
+ */
+function serverInstructionsFor(servers: ChatRequest["mcpServers"]): string {
+  const noted = (servers ?? []).filter((server) => server?.name && server.instructions?.trim());
+  if (!noted.length) return "";
+  return [
+    "Instructions the user attached to specific tool servers — follow them when you use that server:",
+    ...noted.map((server) => `- ${server.name}: ${String(server.instructions).trim()}`),
   ].join("\n");
 }
 
@@ -128,6 +143,9 @@ function systemPromptFor(
 
   blocks.push(toolPolicyFor(tools));
 
+  const serverNotes = serverInstructionsFor(body.mcpServers);
+  if (serverNotes) blocks.push(serverNotes);
+
   if (body.harness?.enabled) {
     blocks.push(
       `Agent mode is enabled. You may chain up to ${body.harness.maxSteps} tool steps in this turn and should keep going until the task is done.`,
@@ -171,6 +189,7 @@ export async function POST(request: Request) {
       transport: server.transport,
       target: server.target,
       headers: server.headers,
+      instructions: server.instructions,
     }));
 
   const encoder = new TextEncoder();

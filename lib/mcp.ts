@@ -10,6 +10,7 @@ export interface McpServerConfig {
   transport: McpTransport;
   target: string;
   headers?: Record<string, string>;
+  instructions?: string;
 }
 
 export interface McpTool {
