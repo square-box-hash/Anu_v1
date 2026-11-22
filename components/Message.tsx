@@ -108,11 +108,24 @@ function ThinkingBlock({
 
 
 function ToolCallCard({ call }: { call: ToolCall }) {
+  const store = useStore();
   // Closed until asked: a search should not unfold its whole JSON on its own.
   const [open, setOpen] = useState(false);
-  const status = call.pending ? "running" : call.ok ? "ok" : "error";
+  const status = call.awaitingApproval
+    ? "waiting"
+    : call.pending
+      ? "running"
+      : call.ok
+        ? "ok"
+        : "error";
   const tone =
-    status === "running" ? "text-accent-soft" : status === "ok" ? "text-ok/90" : "text-danger";
+    status === "waiting"
+      ? "text-warn"
+      : status === "running"
+        ? "text-accent-soft"
+        : status === "ok"
+          ? "text-ok/90"
+          : "text-danger";
 
   return (
     <div className="my-2 overflow-hidden rounded-xl border border-line bg-surface">
@@ -130,6 +143,32 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         <span className={cx("ml-auto shrink-0 font-mono text-[9.5px] uppercase tracking-[0.12em]", tone)}>{status}</span>
         <Chevron className={cx("h-3 w-3 shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
+      {call.awaitingApproval ? (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-accent/25 bg-accent/[0.06] px-3 py-2">
+          <span className="text-[10.5px] text-warn">Nothing has been sent yet.</span>
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => store.resolveApproval(call.id, "allow", call.server)}
+              className="rounded-md border border-accent/45 bg-accent/20 px-2 py-[3px] text-[10.5px] text-accent-pale transition-colors hover:bg-accent/30"
+            >
+              Allow
+            </button>
+            <button
+              onClick={() => store.resolveApproval(call.id, "always", call.server)}
+              title={`Stop asking about ${call.server} for this chat`}
+              className="rounded-md border border-line px-2 py-[3px] text-[10.5px] text-muted transition-colors hover:text-ink"
+            >
+              Always allow {call.server}
+            </button>
+            <button
+              onClick={() => store.resolveApproval(call.id, "deny", call.server)}
+              className="rounded-md border border-line px-2 py-[3px] text-[10.5px] text-danger transition-colors hover:bg-danger/10"
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      ) : null}
       {open ? (
         <div className="space-y-2 border-t border-line px-3 py-2.5">
           <div>
