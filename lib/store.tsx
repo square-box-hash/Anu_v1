@@ -277,7 +277,8 @@ interface StoreValue extends Persisted {
   regenerate: () => Promise<void>;
   stop: () => void;
   toggleSkill: (id: string) => void;
-  addSkill: (name: string, description: string) => void;
+  addSkill: (name: string, description: string, rules?: string) => void;
+  updateSkill: (id: string, patch: Partial<Pick<Skill, "name" | "description" | "rules">>) => void;
   removeSkill: (id: string) => void;
   addServer: (server: Pick<McpServer, "name" | "transport" | "target" | "headers"> & { instructions?: string }) => void;
   /** Edits a server in place — used for the per-server instructions field. */
@@ -704,7 +705,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       repoSkills: s.enabledRepoSkills,
       skills: s.skills
         .filter((k) => k.enabled)
-        .map((k) => (k.description ? `${k.name} — ${k.description}` : k.name)),
+        .map((k) => ({ name: k.name, description: k.description || undefined, rules: k.rules || undefined })),
       mcpServers: s.servers
         .filter((server) => server.enabled)
         .map((server) => ({
@@ -1174,16 +1175,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const addSkill = useCallback((name: string, description: string) => {
+  const addSkill = useCallback((name: string, description: string, rules?: string) => {
     if (!name.trim()) return;
     setState((s) => ({
       ...s,
       skills: [
         ...s.skills,
-        { id: uid(), name: name.trim(), description: description.trim(), enabled: true },
+        {
+          id: uid(),
+          name: name.trim(),
+          description: description.trim(),
+          rules: rules?.trim() || undefined,
+          enabled: true,
+        },
       ],
     }));
   }, []);
+
+  const updateSkill = useCallback(
+    (id: string, patch: Partial<Pick<Skill, "name" | "description" | "rules">>) => {
+      setState((s) => ({
+        ...s,
+        skills: s.skills.map((skill) => (skill.id === id ? { ...skill, ...patch } : skill)),
+      }));
+    },
+    [],
+  );
 
   const removeSkill = useCallback((id: string) => {
     setState((s) => ({ ...s, skills: s.skills.filter((k) => k.id !== id) }));
@@ -1426,6 +1443,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       stop,
       toggleSkill,
       addSkill,
+      updateSkill,
       removeSkill,
       addServer,
       updateServer,
@@ -1460,6 +1478,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       stop,
       toggleSkill,
       addSkill,
+      updateSkill,
       removeSkill,
       addServer,
       updateServer,
