@@ -238,6 +238,10 @@ function ConnectorsTab() {
   const [config, setConfig] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [instructions, setInstructions] = useState("");
+  // Which server's instruction box is open, and what is typed in it.
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
 
   const PRESETS = [
     { label: "filesystem", transport: "stdio" as McpTransport, target: "npx -y @modelcontextprotocol/server-filesystem ." },
@@ -307,6 +311,35 @@ function ConnectorsTab() {
                   {server.error ? (
                     <p className="mt-1 break-words text-[10.5px] leading-relaxed text-danger">{server.error}</p>
                   ) : null}
+                  {noteFor === server.id ? (
+                    <div className="mt-1.5">
+                      <textarea
+                        autoFocus
+                        value={noteDraft}
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        onBlur={() => {
+                          store.updateServer(server.id, { instructions: noteDraft.trim() || undefined });
+                          setNoteFor(null);
+                        }}
+                        rows={3}
+                        placeholder="When and how should the model use this server? e.g. always add the city name to news queries"
+                        className={cx(inputClass, "resize-none text-[10.5px] leading-relaxed")}
+                      />
+                      <p className="mt-1 text-[9.5px] text-faint">Saved when you click away.</p>
+                    </div>
+                  ) : server.instructions ? (
+                    <button
+                      onClick={() => {
+                        setNoteFor(server.id);
+                        setNoteDraft(server.instructions ?? "");
+                      }}
+                      className="mt-1.5 block w-full rounded-lg border border-line bg-sunken px-2 py-1 text-left text-[10.5px] leading-relaxed text-muted transition-colors hover:border-accent/40 hover:text-ink"
+                      title="Edit the instructions for this server"
+                    >
+                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-faint/80">notes · </span>
+                      {server.instructions}
+                    </button>
+                  ) : null}
                   {server.tools?.length ? (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {server.tools.slice(0, 8).map((tool) => (
@@ -333,6 +366,20 @@ function ConnectorsTab() {
                     <Refresh className="h-3 w-3" />
                   </button>
                   <button
+                    onClick={() => {
+                      setNoteFor(noteFor === server.id ? null : server.id);
+                      setNoteDraft(server.instructions ?? "");
+                    }}
+                    className={cx(
+                      "rounded p-1 transition-colors hover:bg-hover hover:text-ink",
+                      server.instructions ? "text-accent-pale" : "text-faint",
+                    )}
+                    aria-label={`Instructions for ${server.name}`}
+                    title="Instructions for the model when it uses this server"
+                  >
+                    <Sliders className="h-3 w-3" />
+                  </button>
+                  <button
                     onClick={() => store.removeServer(server.id)}
                     className="rounded p-1 text-faint hover:bg-danger/15 hover:text-danger"
                     aria-label={`Remove ${server.name}`}
@@ -355,7 +402,9 @@ function ConnectorsTab() {
           Accepts the same shape Claude Desktop uses:{" "}
           <code className="font-mono text-accent-pale">{'{"mcpServers":{…}}'}</code> with either{" "}
           <code className="font-mono text-accent-pale">command</code> or{" "}
-          <code className="font-mono text-accent-pale">url</code>.
+          <code className="font-mono text-accent-pale">url</code>. An optional{" "}
+          <code className="font-mono text-accent-pale">instructions</code> string is passed to the model
+          with that server.
         </p>
         <textarea
           value={config}
@@ -412,11 +461,19 @@ function ConnectorsTab() {
               className={inputClass}
             />
           </div>
+          <textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            rows={2}
+            placeholder="Instructions for the model (optional) — when to use this server, what to ask it for"
+            className={cx(inputClass, "resize-none text-[10.5px] leading-relaxed")}
+          />
           <button
             onClick={() => {
-              store.addServer({ name, transport, target });
+              store.addServer({ name, transport, target, instructions: instructions.trim() || undefined });
               setName("");
               setTarget("");
+              setInstructions("");
             }}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-1.5 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
           >

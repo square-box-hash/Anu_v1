@@ -279,7 +279,9 @@ interface StoreValue extends Persisted {
   toggleSkill: (id: string) => void;
   addSkill: (name: string, description: string) => void;
   removeSkill: (id: string) => void;
-  addServer: (server: Pick<McpServer, "name" | "transport" | "target" | "headers">) => void;
+  addServer: (server: Pick<McpServer, "name" | "transport" | "target" | "headers"> & { instructions?: string }) => void;
+  /** Edits a server in place — used for the per-server instructions field. */
+  updateServer: (id: string, patch: Partial<Pick<McpServer, "name" | "target" | "headers" | "instructions">>) => void;
   importServers: (json: string) => Promise<{ added: number; ids: string[]; error?: string }>;
   refreshServer: (id: string) => Promise<void>;
   toggleServer: (id: string) => void;
@@ -711,6 +713,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           transport: server.transport,
           target: server.target,
           headers: server.headers,
+          instructions: server.instructions,
         })),
       harness: {
         enabled: s.harness.enabled,
@@ -1187,11 +1190,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addServer = useCallback(
-    (server: Pick<McpServer, "name" | "transport" | "target" | "headers">) => {
+    (server: Pick<McpServer, "name" | "transport" | "target" | "headers"> & { instructions?: string }) => {
       if (!server.name.trim() || !server.target.trim()) return;
       setState((s) => ({
         ...s,
         servers: [...s.servers, { ...server, id: uid(), enabled: true, status: "connecting" as const }],
+      }));
+    },
+    [],
+  );
+
+  const updateServer = useCallback(
+    (id: string, patch: Partial<Pick<McpServer, "name" | "target" | "headers" | "instructions">>) => {
+      setState((s) => ({
+        ...s,
+        servers: s.servers.map((server) => (server.id === id ? { ...server, ...patch } : server)),
       }));
     },
     [],
@@ -1220,6 +1233,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         transport?: string;
         headers?: Record<string, string>;
         env?: Record<string, string>;
+        instructions?: string;
+        description?: string;
       };
       if (!config || typeof config !== "object") continue;
 
@@ -1231,6 +1246,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           transport,
           target: config.url,
           headers: config.headers,
+          instructions: config.instructions ?? config.description,
           enabled: true,
           status: "connecting",
         });
@@ -1241,6 +1257,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           name,
           transport: "stdio",
           target: [config.command, ...args].join(" "),
+          instructions: config.instructions ?? config.description,
           enabled: true,
           status: "connecting",
         });
@@ -1411,6 +1428,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addSkill,
       removeSkill,
       addServer,
+      updateServer,
       importServers,
       refreshServer,
       toggleServer,
@@ -1444,6 +1462,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addSkill,
       removeSkill,
       addServer,
+      updateServer,
       importServers,
       refreshServer,
       toggleServer,

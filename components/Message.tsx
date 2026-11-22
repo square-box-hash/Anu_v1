@@ -108,7 +108,8 @@ function ThinkingBlock({
 
 
 function ToolCallCard({ call }: { call: ToolCall }) {
-  const [open, setOpen] = useState(Boolean(call.pending));
+  // Closed until asked: a search should not unfold its whole JSON on its own.
+  const [open, setOpen] = useState(false);
   const status = call.pending ? "running" : call.ok ? "ok" : "error";
   const tone =
     status === "running" ? "text-accent-soft" : status === "ok" ? "text-ok/90" : "text-danger";
@@ -270,9 +271,19 @@ const components: Components = {
     );
   },
   img({ src, alt }) {
+    // Remote images (a search result, a page thumbnail) are plain <img>: no
+    // next/image domain list to maintain, and no-referrer so the host does not
+    // learn where the reader came from.
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={typeof src === "string" ? src : ""} alt={alt ?? ""} className="my-3 max-w-full rounded-xl border border-line" />
+      <img
+        src={typeof src === "string" ? src : ""}
+        alt={alt ?? ""}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        className="my-3 max-h-[420px] w-auto max-w-full rounded-xl border border-line bg-sunken object-contain"
+      />
     );
   },
 };
@@ -437,6 +448,7 @@ export default function Message({
   const [copied, setCopied] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [inspecting, setInspecting] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // Overlays are portalled to <body>: every message is its own stacking context
   // (the rise animation leaves a transform in place), so a fixed overlay inside
   // one message painted underneath the messages after it.
@@ -550,6 +562,77 @@ export default function Message({
     </div>
   ) : null;
 
+  /**
+   * Everything that used to sit above the answer — which model answered, how it
+   * was routed, the tools and MCP calls with their JSON, notices and cost —
+   * folded away behind the "⋯" at the end, opened only when asked for.
+   */
+  const detailsPanel = (
+    <div className="mt-2 space-y-2.5 rounded-xl border border-line bg-surface px-3 py-2.5">
+      {(message.routing || message.model) && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted">
+          <Cpu className="h-3 w-3 shrink-0 text-accent-soft" />
+          <span className="font-mono text-accent-pale">{message.routing?.selectedModel ?? message.model}</span>
+          {message.routing?.category && message.routing.category !== "direct" && (
+            <>
+              <span className="h-2.5 w-px bg-line" />
+              <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">
+                {message.routing.category.replace(/_/g, " ")}
+              </span>
+            </>
+          )}
+          {message.routing?.routerModel && (
+            <span className="text-[10px] text-faint/80">· via {message.routing.routerModel}</span>
+          )}
+        </div>
+      )}
+
+      {message.routing?.reason ? (
+        <p className="text-[11px] leading-relaxed text-faint">{message.routing.reason}</p>
+      ) : null}
+
+      {message.routing?.steps?.length ? (
+        <p className="font-mono text-[9.5px] uppercase leading-relaxed tracking-[0.1em] text-faint/70">
+          {message.routing.steps.join(" → ")}
+        </p>
+      ) : null}
+
+      {message.toolCalls?.length ? (
+        <div>
+          <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">
+            tools used · {message.toolCalls.length}
+          </div>
+          {message.toolCalls.map((call) => (
+            <ToolCallCard key={call.id} call={call} />
+          ))}
+        </div>
+      ) : null}
+
+      {message.notices?.length ? (
+        <div className="space-y-1">
+          {message.notices.map((notice, index) => (
+            <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
+              <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-amber-300/70" />
+              <span className="min-w-0 break-words">{notice}</span>
+            </p>
+          ))}
+        </div>
+      ) : null}
+
+      {message.usage ? (
+        <UsageLine usage={message.usage} model={message.model ?? message.routing?.selectedModel} />
+      ) : null}
+
+      <button
+        onClick={() => setInspecting(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[10px] text-muted transition-colors hover:border-accent/40 hover:text-accent-pale"
+      >
+        <Cpu className="h-3 w-3" />
+        full trace (JSON)
+      </button>
+    </div>
+  );
+
   const actionBar = (align: "left" | "right") => (
     <div className={cx("mt-1.5 flex items-center gap-0.5", align === "right" && "justify-end")}>
       <button
@@ -584,14 +667,20 @@ export default function Message({
         <ArrowRight className="h-3.5 w-3.5 -rotate-180" />
       </button>
 
-      <button
-        onClick={() => setInspecting(true)}
-        className="inline-flex items-center gap-1 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
-        title="Inspect routing, tools and reasoning"
-        aria-label="Inspect trace"
-      >
-        <Cpu className="h-3.5 w-3.5" />
-      </button>
+      {!isUser && (
+        <button
+          onClick={() => setDetailsOpen((open) => !open)}
+          aria-expanded={detailsOpen}
+          className={cx(
+            "inline-flex items-center gap-1 rounded-md p-1.5 transition-colors hover:bg-hover",
+            detailsOpen ? "text-accent-pale" : "text-faint hover:text-ink",
+          )}
+          title={detailsOpen ? "Hide model, tools and MCP details" : "Model, tools and MCP details"}
+          aria-label={detailsOpen ? "Hide details" : "Show details"}
+        >
+          <span className="text-[15px] leading-none tracking-[0.06em]">⋯</span>
+        </button>
+      )}
 
       {!isUser && onRegenerate && (
         <button
@@ -694,52 +783,12 @@ export default function Message({
     <div className="group animate-rise" onContextMenu={openMenu} {...touchHandlers}>
       {quoteChip}
 
-      {(message.routing || message.model) && (
-        <div
-          className="mb-2 inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-[10.5px] text-muted"
-          title={message.routing?.reason}
-        >
-          <Cpu className="h-3 w-3 shrink-0 text-accent-soft" />
-          <span className="font-mono text-accent-pale">{message.routing?.selectedModel ?? message.model}</span>
-          {message.routing?.category && message.routing.category !== "direct" && (
-            <>
-              <span className="h-2.5 w-px bg-line" />
-              <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">
-                {message.routing.category.replace(/_/g, " ")}
-              </span>
-            </>
-          )}
-          {message.routing?.routerModel && (
-            <span className="hidden text-[10px] text-faint/80 sm:inline">· via {message.routing.routerModel}</span>
-          )}
-        </div>
-      )}
-
       {message.thinking ? (
         <ThinkingBlock
           text={message.thinking}
           streaming={Boolean(message.pending)}
           hasContent={Boolean(message.content)}
         />
-      ) : null}
-
-      {message.toolCalls?.length ? (
-        <div className="mb-2">
-          {message.toolCalls.map((call) => (
-            <ToolCallCard key={call.id} call={call} />
-          ))}
-        </div>
-      ) : null}
-
-      {message.notices?.length ? (
-        <div className="mb-2 space-y-1">
-          {message.notices.map((notice, index) => (
-            <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
-              <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-amber-300/70" />
-              <span className="min-w-0 break-words">{notice}</span>
-            </p>
-          ))}
-        </div>
       ) : null}
 
       {message.pending && !message.content ? (
@@ -768,9 +817,7 @@ export default function Message({
         </div>
       )}
 
-      {!message.pending && message.usage ? (
-        <UsageLine usage={message.usage} model={message.model ?? message.routing?.selectedModel} />
-      ) : null}
+      {!message.pending && detailsOpen ? detailsPanel : null}
 
       {!message.pending && message.content ? actionBar("left") : null}
 

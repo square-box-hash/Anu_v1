@@ -92,6 +92,8 @@ export interface McpServer {
   transport: McpTransport;
   target: string;
   headers?: Record<string, string>;
+  /** Per-server guidance for the model, e.g. "always search the city name too". */
+  instructions?: string;
   enabled: boolean;
   status: McpStatus;
   /** Tool names reported by the server, filled in after a check. */
@@ -142,6 +144,8 @@ export interface ChatRequest {
     transport: McpTransport;
     target: string;
     headers?: Record<string, string>;
+    /** Free-text guidance for the model, written by the user per server. */
+    instructions?: string;
   }[];
   harness?: { enabled: boolean; agentMode: boolean; maxSteps: number };
   orchestration?: OrchestrationConfig;
