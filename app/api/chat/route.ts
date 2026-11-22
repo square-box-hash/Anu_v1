@@ -61,9 +61,10 @@ function toolPolicyFor(tools: McpTool[]): string {
   if (!tools.length) {
     return [
       "No tools are connected in this chat.",
-      "If an answer depends on something you cannot know — news, prices, releases, versions,",
-      "who currently holds a role, anything after your training data — say plainly that you",
-      "cannot check it and what to look up. Never present a guess as a current fact.",
+      "Answer from what you know whenever you are sure. If the question turns on something you",
+      "cannot know — news, prices, releases, versions, who currently holds a role, anything after",
+      "your training data — say plainly that you cannot check it and what to look up.",
+      "Never present a guess as a current fact.",
     ].join(" ");
   }
 
@@ -74,17 +75,24 @@ function toolPolicyFor(tools: McpTool[]): string {
   return [
     "Tools you can call in this turn:",
     catalogue,
-    "Call one when:",
+    "Call one when — and only then:",
     "- The answer could have changed since your training data: news, prices, releases, versions,",
     "deprecations, sports results, who currently holds a role, or the words latest, new, current or now.",
-    "- The user names a thing you recognise as new or recently released but are not sure about.",
-    "- Search first and answer second: one wrong confident answer costs more than one extra call.",
-    "- The user asks you to check, verify or quote a source.",
-    "How to call one:",
-    "- One well-chosen query beats five vague ones. Refine only if the result is empty or off-target.",
+    "- The user names something that looks recently released, and you are genuinely unsure of it.",
+    "- The user asks you to check, verify, quote or cite a source.",
+    "Skip the tool when:",
+    "- The answer is settled knowledge that does not change: a molecule's geometry or bond angle,",
+    "a definition, a formula, arithmetic, an established law, well-known history, or syntax you know.",
+    "Answer those yourself — searching for them wastes the user's time and makes the reply slower.",
+    "- You can answer correctly and confidently from memory. A search is a cost the user pays;",
+    "it is not a way to feel safer about something you already know.",
+    "- The user wants your judgement, a rewrite, or reasoning over what they have already given you.",
+    "When you do search: one well-chosen query is usually enough. Refine only if the result was empty,",
+    "off-target, or contradicts itself.",
+    "How to answer afterwards:",
     "- Answer from what the tool returned and say where it came from. If it fails or returns nothing,",
     "say that instead of filling the gap from memory.",
-    "- Do not call a tool to restate something you already know and that cannot have changed.",
+    "- Do not call a tool twice for the same fact, and do not narrate the search — just use it.",
   ].join("\n");
 }
 
