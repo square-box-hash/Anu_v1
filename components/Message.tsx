@@ -364,9 +364,32 @@ function UsageLine({ usage, model }: { usage: Usage; model?: string | null }) {
   );
 }
 
-function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+/**
+ * Everything a reply carries behind it — which model answered, how it was
+ * routed, the tools and MCP calls with their JSON, notices and cost — in one
+ * centred window over a blurred conversation, the same shape as the panel
+ * windows, instead of a block that pushed the answer around.
+ */
+function MessageDetails({ message, onClose }: { message: Msg; onClose: () => void }) {
+  const [raw, setRaw] = useState(false);
   const [fullText, setFullText] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [onClose]);
+
   const json = React.useMemo(
     () => JSON.stringify(traceFor(message, { fullText }), null, 2),
     [message, fullText],
@@ -382,54 +405,145 @@ function Inspector({ message, onClose }: { message: Msg; onClose: () => void }) 
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6">
-      <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
-      <div className="relative flex max-h-[88dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-2xl border border-line bg-panel shadow-2xl sm:max-h-[86vh] sm:rounded-2xl">
+  const overlay = (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
+      <div
+        onClick={onClose}
+        className="absolute inset-0 animate-fade bg-scrimsoft backdrop-blur-[6px]"
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="How this reply was produced"
+        className="relative flex max-h-[90dvh] w-full max-w-[720px] animate-rise flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-[0_30px_90px_-30px_rgba(0,0,0,0.8)] sm:max-h-[86vh]"
+      >
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
-          <Cpu className="h-3.5 w-3.5 text-accent-soft" />
+          <Cpu className="h-3.5 w-3.5 shrink-0 text-accent-soft" />
           <h2 className="min-w-0 truncate text-[12.5px] font-semibold text-ink">How this reply was produced</h2>
-          <span className="rounded border border-line px-1.5 py-[1px] font-mono text-[9px] uppercase tracking-wider text-faint">
+          <span className="shrink-0 rounded border border-line px-1.5 py-[1px] font-mono text-[9px] uppercase tracking-wider text-faint">
             {message.role}
           </span>
           <button
-            onClick={() => setFullText((value) => !value)}
-            title="Include the whole reply instead of a preview"
-            className={cx(
-              "ml-auto rounded-md border px-1.5 py-1 text-[10px] transition-colors",
-              fullText
-                ? "border-accent/40 bg-accent/15 text-accent-pale"
-                : "border-line text-faint hover:text-ink",
-            )}
-          >
-            full text
-          </button>
-          <button
-            onClick={copy}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-hover hover:text-ink"
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copied ? "Copied" : "Copy JSON"}
-          </button>
-          <button
             onClick={onClose}
-            className="rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
+            className="ml-auto shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
             aria-label="Close"
+            title="Close (Esc)"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-field p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.65] text-accent-pale/85">
-            {json}
-          </pre>
+
+        <div className="flex shrink-0 items-center gap-1 border-b border-line px-3 py-1.5">
+          <button
+            onClick={() => setRaw(false)}
+            aria-pressed={!raw}
+            className={cx(
+              "rounded-lg px-2.5 py-1 text-[11.5px] transition-colors",
+              !raw ? "bg-accent/15 text-accent-pale" : "text-muted hover:bg-hover hover:text-ink",
+            )}
+          >
+            details
+          </button>
+          <button
+            onClick={() => setRaw(true)}
+            aria-pressed={raw}
+            className={cx(
+              "rounded-lg px-2.5 py-1 text-[11.5px] transition-colors",
+              raw ? "bg-accent/15 text-accent-pale" : "text-muted hover:bg-hover hover:text-ink",
+            )}
+          >
+            raw JSON
+          </button>
+
+          {raw ? (
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                onClick={() => setFullText((value) => !value)}
+                title="Include the whole reply instead of a preview"
+                className={cx(
+                  "rounded-md border px-1.5 py-1 text-[10px] transition-colors",
+                  fullText ? "border-accent/40 bg-accent/15 text-accent-pale" : "border-line text-faint hover:text-ink",
+                )}
+              >
+                full text
+              </button>
+              <button
+                onClick={copy}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] text-muted transition-colors hover:bg-hover hover:text-ink"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          ) : null}
         </div>
-        <div className="border-t border-line px-4 py-2 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/70">
-          routing · tools · reasoning · quote · content
-        </div>
+
+        {raw ? (
+          <div className="min-h-0 flex-1 overflow-auto bg-field p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.65] text-accent-pale/85">
+              {json}
+            </pre>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 pb-[max(0.9rem,env(safe-area-inset-bottom))]">
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+              <span className="font-mono text-accent-pale">{message.routing?.selectedModel ?? message.model ?? "unknown model"}</span>
+              {message.routing?.category && message.routing.category !== "direct" ? (
+                <>
+                  <span className="h-2.5 w-px bg-line" />
+                  <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">
+                    {message.routing.category.replace(/_/g, " ")}
+                  </span>
+                </>
+              ) : null}
+              {message.routing?.routerModel ? (
+                <span className="text-[10px] text-faint/80">· via {message.routing.routerModel}</span>
+              ) : null}
+            </div>
+
+            {message.routing?.reason ? (
+              <p className="text-[11.5px] leading-relaxed text-faint">{message.routing.reason}</p>
+            ) : null}
+
+            {message.routing?.steps?.length ? (
+              <p className="font-mono text-[9.5px] uppercase leading-relaxed tracking-[0.1em] text-faint/70">
+                {message.routing.steps.join(" → ")}
+              </p>
+            ) : null}
+
+            <div>
+              <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">
+                tools used · {message.toolCalls?.length ?? 0}
+              </div>
+              {message.toolCalls?.length ? (
+                message.toolCalls.map((call) => <ToolCallCard key={call.id} call={call} />)
+              ) : (
+                <p className="text-[11px] text-faint">No tool was called for this reply.</p>
+              )}
+            </div>
+
+            {message.notices?.length ? (
+              <div className="space-y-1">
+                {message.notices.map((notice, index) => (
+                  <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
+                    <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-amber-300/70" />
+                    <span className="min-w-0 break-words">{notice}</span>
+                  </p>
+                ))}
+              </div>
+            ) : null}
+
+            {message.usage ? (
+              <UsageLine usage={message.usage} model={message.model ?? message.routing?.selectedModel} />
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );
+
+  return mounted ? createPortal(overlay, document.body) : null;
 }
 
 interface MenuState {
@@ -447,7 +561,6 @@ export default function Message({
   const store = useStore();
   const [copied, setCopied] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [inspecting, setInspecting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   // Overlays are portalled to <body>: every message is its own stacking context
   // (the rise animation leaves a transform in place), so a fixed overlay inside
@@ -562,77 +675,6 @@ export default function Message({
     </div>
   ) : null;
 
-  /**
-   * Everything that used to sit above the answer — which model answered, how it
-   * was routed, the tools and MCP calls with their JSON, notices and cost —
-   * folded away behind the "⋯" at the end, opened only when asked for.
-   */
-  const detailsPanel = (
-    <div className="mt-2 space-y-2.5 rounded-xl border border-line bg-surface px-3 py-2.5">
-      {(message.routing || message.model) && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted">
-          <Cpu className="h-3 w-3 shrink-0 text-accent-soft" />
-          <span className="font-mono text-accent-pale">{message.routing?.selectedModel ?? message.model}</span>
-          {message.routing?.category && message.routing.category !== "direct" && (
-            <>
-              <span className="h-2.5 w-px bg-line" />
-              <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">
-                {message.routing.category.replace(/_/g, " ")}
-              </span>
-            </>
-          )}
-          {message.routing?.routerModel && (
-            <span className="text-[10px] text-faint/80">· via {message.routing.routerModel}</span>
-          )}
-        </div>
-      )}
-
-      {message.routing?.reason ? (
-        <p className="text-[11px] leading-relaxed text-faint">{message.routing.reason}</p>
-      ) : null}
-
-      {message.routing?.steps?.length ? (
-        <p className="font-mono text-[9.5px] uppercase leading-relaxed tracking-[0.1em] text-faint/70">
-          {message.routing.steps.join(" → ")}
-        </p>
-      ) : null}
-
-      {message.toolCalls?.length ? (
-        <div>
-          <div className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">
-            tools used · {message.toolCalls.length}
-          </div>
-          {message.toolCalls.map((call) => (
-            <ToolCallCard key={call.id} call={call} />
-          ))}
-        </div>
-      ) : null}
-
-      {message.notices?.length ? (
-        <div className="space-y-1">
-          {message.notices.map((notice, index) => (
-            <p key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
-              <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-amber-300/70" />
-              <span className="min-w-0 break-words">{notice}</span>
-            </p>
-          ))}
-        </div>
-      ) : null}
-
-      {message.usage ? (
-        <UsageLine usage={message.usage} model={message.model ?? message.routing?.selectedModel} />
-      ) : null}
-
-      <button
-        onClick={() => setInspecting(true)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[10px] text-muted transition-colors hover:border-accent/40 hover:text-accent-pale"
-      >
-        <Cpu className="h-3 w-3" />
-        full trace (JSON)
-      </button>
-    </div>
-  );
-
   const actionBar = (align: "left" | "right") => (
     <div className={cx("mt-1.5 flex items-center gap-0.5", align === "right" && "justify-end")}>
       <button
@@ -723,7 +765,7 @@ export default function Message({
                 ? [{ label: speaking ? "Stop reading" : "Read aloud", run: toggleSpeech }]
                 : []),
               { label: "Reply to this message", run: quoteWhole },
-              { label: "Inspect hidden details", run: () => setInspecting(true) },
+              { label: "How this reply was made", run: () => setDetailsOpen(true) },
             ].map((item) => (
               <button
                 key={item.label}
@@ -740,7 +782,7 @@ export default function Message({
         </>
       )}
 
-      {inspecting && <Inspector message={message} onClose={() => setInspecting(false)} />}
+      {detailsOpen && <MessageDetails message={message} onClose={() => setDetailsOpen(false)} />}
     </>
   );
 
@@ -816,8 +858,6 @@ export default function Message({
           </ReactMarkdown>
         </div>
       )}
-
-      {!message.pending && detailsOpen ? detailsPanel : null}
 
       {!message.pending && message.content ? actionBar("left") : null}
 
