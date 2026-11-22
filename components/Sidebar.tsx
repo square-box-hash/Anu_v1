@@ -63,7 +63,11 @@ export default function Sidebar({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = [...store.chats].sort((a, b) => b.updatedAt - a.updatedAt);
+    // An untouched chat is not history yet: it joins Recent chats with its
+    // first message instead of sitting there as an empty "New chat" row.
+    const list = store.chats
+      .filter((c) => c.messages.length > 0)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
     if (!q) return list;
     return list.filter(
       (c) =>
