@@ -244,6 +244,11 @@ function ConnectorsTab() {
     { label: "memory", transport: "stdio" as McpTransport, target: "npx -y @modelcontextprotocol/server-memory" },
     { label: "thinking", transport: "stdio" as McpTransport, target: "npx -y @modelcontextprotocol/server-sequential-thinking" },
     { label: "http url", transport: "http" as McpTransport, target: "https://example.com/mcp" },
+    {
+      label: "tavily",
+      transport: "http" as McpTransport,
+      target: "https://mcp.tavily.com/mcp/?tavilyApiKey=tvly-YOUR_KEY",
+    },
   ];
 
   const importConfig = async () => {
