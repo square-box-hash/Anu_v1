@@ -36,6 +36,20 @@ type Event =
 
 const isSkillTool = (name: string) => (SKILL_TOOL_NAMES as readonly string[]).includes(name);
 
+/**
+ * Every reply is rendered with GitHub-flavoured Markdown (remark-gfm +
+ * KaTeX), so the model is told what the renderer can actually draw instead of
+ * staying on plain paragraphs.
+ */
+const MARKDOWN_NOTE = [
+  "Replies render as GitHub-flavoured Markdown. Use it where it helps the reader:",
+  "## headings, **bold**, `inline code`, fenced code blocks with a language tag,",
+  "- and 1. lists, > quotes, [links](https://example.com), ~~strikethrough~~,",
+  "tables for comparisons and specs (header row, then a |---|:--:| separator row),",
+  "- [ ] task lists for steps, and $inline$ / $$display$$ maths (KaTeX).",
+  "Keep prose first: a table or a code fence carries data, it does not replace the explanation.",
+].join(" ");
+
 function systemPromptFor(
   body: ChatRequest,
   skills: { name: string; description: string }[],
@@ -46,6 +60,8 @@ function systemPromptFor(
   if (body.systemPrompt?.trim()) blocks.push(body.systemPrompt.trim());
 
   if (routeNote) blocks.push(routeNote);
+
+  blocks.push(MARKDOWN_NOTE);
 
   if (body.attachments?.length) {
     const fileSummaries = body.attachments.map((a) =>

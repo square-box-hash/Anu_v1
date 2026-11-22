@@ -50,7 +50,7 @@
   --scroll: rgba(150, 122, 255, 0.22);
   --scroll-hover: rgba(150, 122, 255, 0.42);
   /* Monochrome mark: a black logo would vanish on this canvas. */
-  --logo-filter: brightness(0) invert(1);
+  --logo-filter: none;
 }
 
 [data-theme="light"] {
@@ -98,12 +98,14 @@
   --panel-2: #2b1a3b;
   --line: rgba(232, 121, 249, 0.16);
   --line-strong: rgba(232, 121, 249, 0.34);
-  --text: #f6ecff;
-  --muted: #b9a3c9;
-  --faint: #8b7699;
+  /* Readable over a violet canvas: the old greys sat too close to the
+     background, so labels like "What's new" washed out. */
+  --text: #fbf5ff;
+  --muted: #dccbe9;
+  --faint: #b3a0c4;
   --accent: #c026d3;
   --accent-soft: #e879f9;
-  --accent-pale: #f5d0fe;
+  --accent-pale: #fbe8ff;
 
   --surface: rgba(255, 255, 255, 0.04);
   --hover: rgba(232, 121, 249, 0.1);
@@ -124,7 +126,7 @@
   --shadow-accent: rgba(232, 121, 249, 0.5);
   --scroll: rgba(232, 121, 249, 0.24);
   --scroll-hover: rgba(232, 121, 249, 0.45);
-  --logo-filter: brightness(0) invert(1);
+  --logo-filter: none;
 }
 
 * {
@@ -252,6 +254,26 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .md-body > :last-child {
   margin-bottom: 0;
+}
+
+/* GFM tables: zebra rows and a hover, so long comparisons stay readable. */
+.md-table tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+.md-table tbody tr:hover {
+  background: var(--hover);
+}
+.md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* GFM task lists: the checkbox replaces the bullet. */
+.md-body input[type="checkbox"] {
+  margin: 5px 0 0;
+  accent-color: var(--accent);
+}
+.md-body li:has(> input[type="checkbox"]) {
+  list-style: none;
 }
 
 /* KaTeX, tuned for the dark theme */

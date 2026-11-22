@@ -12,8 +12,9 @@ export const dynamic = "force-dynamic";
  * while looking at the sidebar. `ANU_TITLE_MODEL` overrides it.
  */
 const TITLE_MODEL = process.env.ANU_TITLE_MODEL || "gemini-3.1-flash-lite";
-const MAX_WORDS = 5;
-const MAX_TITLE_CHARS = 48;
+/** Two or three words: a sidebar row, not a summary. */
+const MAX_WORDS = 3;
+const MAX_TITLE_CHARS = 32;
 
 function cleanTitle(raw: string): string {
   const firstLine = raw.trim().split(/\r?\n/)[0] ?? "";
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
 
   const prompt = [
     "Name this conversation for a sidebar list.",
-    `Rules: at most ${MAX_WORDS} words. No quotes. No trailing period.`,
+    `Rules: 2 or 3 words, never more than ${MAX_WORDS}. No quotes. No trailing period.`,
+    'Name the subject itself, not the request: "cron jobs at midnight", not "Chat about scheduling".',
     'No prefix such as "Chat about" or "Discussion of".',
     "Reply with the title only.",
     "",

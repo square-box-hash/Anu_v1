@@ -63,3 +63,20 @@ export function titleFrom(text: string): string {
   if (!clean) return "New chat";
   return clean.length > 48 ? `${clean.slice(0, 48)}…` : clean;
 }
+
+/**
+ * GFM column alignment (`|---:|`) arrives as align="left|center|right" (plus
+ * the HTML-only "justify"/"char", which are not CSS text-align values).
+ */
+export function textAlignFor(align?: string | null): "left" | "center" | "right" | undefined {
+  return align === "left" || align === "center" || align === "right" ? align : undefined;
+}
+
+/**
+ * Table cells carry their alignment on the hast node (`node.properties.align`),
+ * not as a React prop, so read it from there.
+ */
+export function cellAlignFrom(node?: { properties?: Record<string, unknown> } | null): "left" | "center" | "right" | undefined {
+  const align = node?.properties?.align;
+  return typeof align === "string" ? textAlignFor(align) : undefined;
+}

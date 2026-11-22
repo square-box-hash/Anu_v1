@@ -610,9 +610,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
-   * Names a chat from its first exchange, at most 5 words, on the smallest fast
-   * model. Runs once per chat, only while the title is still the auto-derived
-   * one — so a user rename is never overwritten.
+   * Names a chat from its first exchange, two or three words, on the smallest
+   * fast model. Runs once per chat, only while the title is still the
+   * auto-derived one — so a user rename is never overwritten.
    */
   const maybeTitleChat = useCallback(
     async (chatId: string) => {
@@ -630,7 +630,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const derived = titleFrom(userTurns[0].content || "New chat");
       if (chat.title !== derived) return;
 
-      titledChatIdsRef.current.add(chatId);
       try {
         const res = await fetch("/api/title", {
           method: "POST",
@@ -650,6 +649,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // The user may have renamed the chat while the model was answering.
         const current = stateRef.current.chats.find((c) => c.id === chatId);
         if (!current || current.title !== derived) return;
+        titledChatIdsRef.current.add(chatId);
         renameChat(chatId, title);
       } catch {
         /* a title is cosmetic — never surface a failure for it */
