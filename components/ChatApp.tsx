@@ -10,6 +10,8 @@ import ChatView from "./ChatView";
 import Logo from "./Logo";
 import Rail, { initialsFor } from "./Rail";
 import type { Section } from "./Rail";
+import type { PanelTab } from "./RightPanel";
+import PanelModal from "./PanelModal";
 import Sidebar from "./Sidebar";
 import { PanelLeft } from "./Icons";
 import { cx } from "@/lib/utils";
@@ -17,7 +19,8 @@ import { cx } from "@/lib/utils";
 function Workspace() {
   const store = useStore();
   const { user } = useAuth();
-  const [section, setSection] = useState<Section>("chats");
+  // null = no panel open; the sidebar always shows the chat list now.
+  const [panelTab, setPanelTab] = useState<PanelTab | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -27,7 +30,7 @@ function Workspace() {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setSection("chats");
+        setPanelTab(null);
         store.createChat();
       }
       if (meta && e.key.toLowerCase() === "b") {
@@ -39,6 +42,7 @@ function Workspace() {
       if (e.key === "Escape") {
         setSidebarOpen(false);
         setAccountOpen(false);
+        setPanelTab(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -50,10 +54,15 @@ function Workspace() {
 
   const rail = (
     <Rail
-      section={section}
+      section={panelTab ?? "chats"}
       onSection={(next) => {
-        setSection(next);
-        if (typeof window !== "undefined" && window.innerWidth < 1024) setSidebarOpen(true);
+        if (next === "chats") {
+          setPanelTab(null);
+          if (typeof window !== "undefined" && window.innerWidth < 1024) setSidebarOpen(true);
+          return;
+        }
+        setPanelTab(next);
+        setSidebarOpen(false);
       }}
       onOpenAccount={() => setAccountOpen(true)}
       initials={initials}
@@ -69,8 +78,7 @@ function Workspace() {
         {rail}
         {panelOpen ? (
           <Sidebar
-            section={section}
-            onSection={setSection}
+            onSection={(next) => setPanelTab(next === "chats" ? null : next)}
             onCollapse={() => setPanelOpen(false)}
           />
         ) : (
@@ -109,8 +117,10 @@ function Workspace() {
         >
           {rail}
           <Sidebar
-            section={section}
-            onSection={setSection}
+            onSection={(next) => {
+              setPanelTab(next === "chats" ? null : next);
+              setSidebarOpen(false);
+            }}
             onClose={() => setSidebarOpen(false)}
           />
         </div>
@@ -119,12 +129,13 @@ function Workspace() {
       <div className="relative z-10 flex min-w-0 flex-1">
         <ChatView
           onOpenSidebar={() => setSidebarOpen(true)}
-          onOpenSection={(next) => {
-            setSection(next);
-            if (typeof window !== "undefined" && window.innerWidth < 1024) setSidebarOpen(true);
-          }}
+          onOpenSection={(next) => setPanelTab(next)}
         />
       </div>
+
+      {panelTab && (
+        <PanelModal tab={panelTab} onTab={setPanelTab} onClose={() => setPanelTab(null)} />
+      )}
 
       {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
     </>
