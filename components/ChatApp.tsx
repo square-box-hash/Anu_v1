@@ -72,7 +72,6 @@ function Workspace() {
             section={section}
             onSection={setSection}
             onCollapse={() => setPanelOpen(false)}
-            onOpenAccount={() => setAccountOpen(true)}
           />
         ) : (
           <div className="flex h-full w-[46px] shrink-0 flex-col items-center border-r border-line bg-soft/60 py-3">
@@ -113,10 +112,6 @@ function Workspace() {
             section={section}
             onSection={setSection}
             onClose={() => setSidebarOpen(false)}
-            onOpenAccount={() => {
-              setAccountOpen(true);
-              setSidebarOpen(false);
-            }}
           />
         </div>
       </div>

@@ -11,7 +11,7 @@ import type { Message as Msg, ToolCall, Usage } from "@/lib/types";
 import { estimateCost, formatCost, formatTokens } from "@/lib/pricing";
 import { useSpeech } from "@/lib/speech";
 import { useStore } from "@/lib/store";
-import { cx, formatBytes } from "@/lib/utils";
+import { cellAlignFrom, cx, formatBytes } from "@/lib/utils";
 import { focusComposer } from "./Composer";
 import {
   ArrowRight,
@@ -190,19 +190,31 @@ const components: Components = {
       </a>
     );
   },
-  ul({ children }) {
-    return <ul className="my-2 space-y-1.5 pl-1">{children}</ul>;
+  ul({ children, className }) {
+    const tasks = Boolean(className?.includes("contains-task-list"));
+    return <ul className={cx("my-2 space-y-1.5", tasks ? "pl-0" : "pl-1")}>{children}</ul>;
   },
   ol({ children }) {
     return <ol className="my-2 list-decimal space-y-1.5 pl-5 marker:text-accent-soft/70">{children}</ol>;
   },
-  li({ children }) {
+  li({ children, className }) {
+    // "- [ ]" task items get the checkbox instead of the accent bullet.
+    if (className?.includes("task-list-item")) {
+      return (
+        <li className="flex list-none items-start gap-2 text-[14.5px] leading-[1.7] text-ink/90">
+          {children}
+        </li>
+      );
+    }
     return (
       <li className="text-[14.5px] leading-[1.7] text-ink/90 marker:text-accent-soft/70 [ul>&]:flex [ul>&]:gap-2">
         <span className="hidden [ul>&]:mt-[9px] [ul>&]:block [ul>&]:h-1 [ul>&]:w-1 [ul>&]:shrink-0 [ul>&]:rounded-full [ul>&]:bg-accent-soft/70" />
         <span className="min-w-0">{children}</span>
       </li>
     );
+  },
+  del({ children }) {
+    return <del className="text-muted line-through">{children}</del>;
   },
   blockquote({ children }) {
     return (
@@ -229,22 +241,33 @@ const components: Components = {
   table({ children }) {
     return (
       <div className="my-3 overflow-x-auto rounded-xl border border-line">
-        <table className="w-full border-collapse text-left text-[13px]">{children}</table>
+        <table className="md-table w-full border-collapse text-left text-[13px]">{children}</table>
       </div>
     );
   },
   thead({ children }) {
     return <thead className="bg-surface">{children}</thead>;
   },
-  th({ children }) {
+  // `|---:|` / `|:--:|` in the separator row arrive as align on the cell.
+  th({ children, node }) {
     return (
-      <th className="border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-accent-pale">
+      <th
+        style={{ textAlign: cellAlignFrom(node) }}
+        className="border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-accent-pale"
+      >
         {children}
       </th>
     );
   },
-  td({ children }) {
-    return <td className="border-b border-line/60 px-3 py-2 align-top text-ink/85">{children}</td>;
+  td({ children, node }) {
+    return (
+      <td
+        style={{ textAlign: cellAlignFrom(node) }}
+        className="border-b border-line/60 px-3 py-2 align-top text-ink/85"
+      >
+        {children}
+      </td>
+    );
   },
   img({ src, alt }) {
     return (

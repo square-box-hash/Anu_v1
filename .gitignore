@@ -12,3 +12,8 @@ yarn-error.log*
 .vercel
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# One lock file: npm is the documented workflow, so package-lock.json is
+# the source of truth. A bun.lock here makes the deploy builder pick bun and
+# run `bun install --frozen-lockfile`, which then fails on any drift.
+bun.lock
