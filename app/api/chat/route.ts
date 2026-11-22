@@ -14,6 +14,7 @@ import {
 } from "@/lib/providers/gemini";
 import type { Content, Part } from "@/lib/providers/gemini";
 import { callTool, listAllTools } from "@/lib/mcp";
+import type { McpTool } from "@/lib/mcp";
 import type { McpServerConfig } from "@/lib/mcp";
 import { MEMORY_CONFIG } from "@/lib/memory";
 import { AUTO_MODEL_ID, DEFAULT_MODEL, DEFAULT_ORCHESTRATION_CONFIG, findModel } from "@/lib/models";
@@ -36,11 +37,48 @@ type Event =
 
 const isSkillTool = (name: string) => (SKILL_TOOL_NAMES as readonly string[]).includes(name);
 
+/**
+ * When to reach for a tool. Handing a model a search tool without saying when
+ * to call it produces confident answers from memory, so the rule is written
+ * down here — and it names the tools that are actually connected this turn.
+ */
+function toolPolicyFor(tools: McpTool[]): string {
+  if (!tools.length) {
+    return [
+      "No tools are connected in this chat.",
+      "If an answer depends on something you cannot know — news, prices, releases, versions,",
+      "who currently holds a role, anything after your training data — say plainly that you",
+      "cannot check it and what to look up. Never present a guess as a current fact.",
+    ].join(" ");
+  }
+
+  const catalogue = tools
+    .map((tool) => `- ${tool.qualified}: ${tool.description.split("\n")[0].slice(0, 180)}`)
+    .join("\n");
+
+  return [
+    "Tools you can call in this turn:",
+    catalogue,
+    "Call one when:",
+    "- The answer could have changed since your training data: news, prices, releases, versions,",
+    "deprecations, sports results, who currently holds a role, or the words latest, new, current or now.",
+    "- The user names a thing you recognise as new or recently released but are not sure about.",
+    "- Search first and answer second: one wrong confident answer costs more than one extra call.",
+    "- The user asks you to check, verify or quote a source.",
+    "How to call one:",
+    "- One well-chosen query beats five vague ones. Refine only if the result is empty or off-target.",
+    "- Answer from what the tool returned and say where it came from. If it fails or returns nothing,",
+    "say that instead of filling the gap from memory.",
+    "- Do not call a tool to restate something you already know and that cannot have changed.",
+  ].join("\n");
+}
+
 function systemPromptFor(
   body: ChatRequest,
   skills: { name: string; description: string }[],
   contextBrief?: string | null,
   routeNote?: string,
+  tools: McpTool[] = [],
 ): string {
   const blocks: string[] = [];
   if (body.systemPrompt?.trim()) blocks.push(body.systemPrompt.trim());
@@ -71,6 +109,8 @@ function systemPromptFor(
   if (body.skills?.length) {
     blocks.push(`Inline instructions from the user — follow these when they apply:\n${body.skills.map((s) => `- ${s}`).join("\n")}`);
   }
+
+  blocks.push(toolPolicyFor(tools));
 
   if (body.harness?.enabled) {
     blocks.push(
@@ -323,7 +363,7 @@ export async function POST(request: Request) {
           ? `Orchestration active (${category}): For complex coding/multi-part tasks, output a concise plan and call "${SUBAGENT_TOOL_NAME}" to delegate focused sub-edits, unit tests, docstrings, or JSON extraction in parallel to Gemma 4 (26B/31B) or Gemini 3.5 Flash Lite before synthesizing your final answer.`
           : undefined;
 
-        const systemPrompt = systemPromptFor(body, activeSkills, compressedBrief, orchestrationInstruction);
+        const systemPrompt = systemPromptFor(body, activeSkills, compressedBrief, orchestrationInstruction, tools);
 
         for (let step = 0; step < maxSteps; step++) {
           const calls: { id?: string; name: string; args: Record<string, unknown> }[] = [];
