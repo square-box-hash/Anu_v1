@@ -21,6 +21,8 @@ export interface ToolCall {
   content?: string;
   error?: string;
   pending?: boolean;
+  /** Parked until the person allows it — the call has not reached the server. */
+  awaitingApproval?: boolean;
 }
 
 export interface RoutingInfo {
@@ -151,7 +153,9 @@ export interface ChatRequest {
     /** Free-text guidance for the model, written by the user per server. */
     instructions?: string;
   }[];
-  harness?: { enabled: boolean; agentMode: boolean; maxSteps: number };
+  harness?: { enabled: boolean; agentMode: boolean; maxSteps: number; autoApprove?: boolean };
+  /** Servers this chat has said "always allow" for; they skip the pause. */
+  preapprovedServers?: string[];
   orchestration?: OrchestrationConfig;
   customModels?: CustomModelConfig[];
 }

@@ -13,6 +13,7 @@ import {
   triagePrompt,
 } from "@/lib/providers/gemini";
 import type { Content, Part } from "@/lib/providers/gemini";
+import { APPROVAL_TIMEOUT_MS, waitForApproval } from "@/lib/approvals";
 import { callTool, listAllTools } from "@/lib/mcp";
 import type { McpTool } from "@/lib/mcp";
 import type { McpServerConfig } from "@/lib/mcp";
@@ -29,7 +30,7 @@ type Event =
   | { type: "text"; text: string }
   | { type: "thought"; text: string }
   | { type: "notice"; text: string }
-  | { type: "tool_call"; id: string; server: string; name: string; args: unknown }
+  | { type: "tool_call"; id: string; server: string; name: string; args: unknown; awaiting?: boolean }
   | { type: "tool_result"; id: string; ok: boolean; content: string; error?: string }
   | { type: "error"; text: string }
   | { type: "usage"; usage: Usage }
@@ -514,13 +515,39 @@ export async function POST(request: Request) {
 
             const skillCall = isSkillTool(call.name);
             const owner = tools.find((tool) => tool.qualified === call.name);
+            const serverName = skillCall ? "skill" : owner?.server ?? "unknown";
+            const preapproved = (body.preapprovedServers ?? []).includes(serverName);
+            // Skill tools only read files in this repo, so they never pause.
+            const needsApproval = !skillCall && !body.harness?.autoApprove && !preapproved;
+
             send({
               type: "tool_call",
               id,
-              server: skillCall ? "skill" : owner?.server ?? "unknown",
+              server: serverName,
               name: skillCall ? call.name : owner?.name ?? call.name,
               args: call.args,
+              awaiting: needsApproval,
             });
+
+            if (needsApproval) {
+              const decision = await waitForApproval(id);
+              if (!decision.allow) {
+                const why = decision.reason ?? "not approved";
+                send({ type: "tool_result", id, ok: false, content: "", error: `Not run — ${why}.` });
+                responseParts.push({
+                  functionResponse: {
+                    id: call.id,
+                    name: call.name,
+                    response: {
+                      error: `The user did not approve this call (${why}). Do not retry it; carry on without it or ask what to do instead.`,
+                    },
+                  },
+                });
+                continue;
+              }
+              // Same id, so the card updates in place instead of stacking.
+              send({ type: "tool_call", id, server: serverName, name: owner?.name ?? call.name, args: call.args, awaiting: false });
+            }
 
             const result = skillCall
               ? await runSkillTool(call.name, call.args)

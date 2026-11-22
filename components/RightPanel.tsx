@@ -8,6 +8,7 @@ import { cx } from "@/lib/utils";
 import {
   Bolt,
   Check,
+  Chevron,
   Cpu,
   Download,
   Layers,
@@ -519,119 +520,246 @@ function ConnectorsTab() {
   );
 }
 
+/** The four stages a turn passes through, and the role each one reads. */
+const STAGES: { role: keyof RoleAssignments; step: string; name: string; when: string; what: string }[] = [
+  {
+    role: "router",
+    step: "01",
+    name: "Triage",
+    when: "always",
+    what: "Reads the turn and picks a category, a complexity and the model that should answer. Cheapest step in the pipeline.",
+  },
+  {
+    role: "context",
+    step: "02",
+    name: "Context",
+    when: "when needed",
+    what: "Compresses long chats and big attachments into a brief, so the planner never re-reads everything.",
+  },
+  {
+    role: "planner",
+    step: "03",
+    name: "Planner",
+    when: "always",
+    what: "Writes the answer, or a plan plus a dispatch to subagents for work that splits cleanly.",
+  },
+  {
+    role: "subagentFast",
+    step: "04",
+    name: "Subagents",
+    when: "on demand",
+    what: "Parallel workers for extraction, unit tests, docstrings and JSON shaping. Four rosters, one per kind of job.",
+  },
+];
+
+/** The four workers `dispatch_subagents` can actually ask for. */
+const ROSTER: { role: keyof RoleAssignments; key: string; what: string }[] = [
+  { role: "subagentFast", key: "fast", what: "Bulk, small edits and mechanical rewrites" },
+  { role: "subagentQuality", key: "quality", what: "Anything where wording matters more than speed" },
+  { role: "context", key: "extract", what: "Pull fields out of a long document into JSON" },
+  { role: "specialist", key: "selective", what: "Needs domain reasoning before it writes" },
+];
+
+/**
+ * The harness is the pipeline, not a bridge: four stages, the models bound to
+ * them, the subagent rosters, and the limits a turn runs under. This window is
+ * the only place that writes the role assignments; Models & config reports them.
+ */
 function HarnessTab() {
   const store = useStore();
   const h = store.harness;
+  const orch = store.settings.orchestration;
   const [reveal, setReveal] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const allModels = getAllModels(store.settings.customModels).filter(
+    (m) => m.id !== "auto" && m.modality !== "embedding",
+  );
+
+  const setRole = (role: keyof RoleAssignments, modelId: string) =>
+    store.updateOrchestration({ roles: { ...orch.roles, [role]: modelId } });
+
+  const roleSelect = (role: keyof RoleAssignments, label: string) => (
+    <select
+      value={orch.roles[role]}
+      onChange={(e) => setRole(role, e.target.value)}
+      aria-label={label}
+      className={cx(inputClass, "w-auto max-w-[210px] shrink-0 py-1 text-[10.5px]")}
+    >
+      {allModels.map((m) => (
+        <option key={m.id} value={m.id} className="bg-panel">
+          {m.label}
+        </option>
+      ))}
+    </select>
+  );
+
+  const lastRouted = [...(store.activeChat?.messages ?? [])].reverse().find((m) => m.routing);
 
   return (
     <div className="space-y-4">
       <div>
         <SectionTitle right={<StatusDot status={h.enabled ? h.status : "disconnected"} />}>
-          Harness bridge
+          Pipeline
         </SectionTitle>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Point Anu at an agent harness endpoint so a turn can run tools and spawn subagents. Configure your own — the
-          bridge sends its state with every request.
+          Every turn runs these four stages in order. The model beside each one is the role it reads.
         </p>
       </div>
 
-      <div className="space-y-2.5 rounded-xl border border-line bg-surface p-3">
+      <div className="space-y-1.5">
+        {STAGES.map((stage) => (
+          <div key={stage.step} className="rounded-xl border border-line bg-surface px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] tracking-[0.1em] text-faint/70">{stage.step}</span>
+              <span className="text-[12.5px] font-semibold text-ink">{stage.name}</span>
+              <span className="rounded border border-line px-1 py-[1px] font-mono text-[8.5px] uppercase tracking-wider text-faint">
+                {stage.when}
+              </span>
+              <span className="ml-auto">{roleSelect(stage.role, `Model for ${stage.name}`)}</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-faint">{stage.what}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-line bg-surface p-3">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] text-ink">Enable bridge</span>
-          <Toggle checked={h.enabled} onChange={(v) => store.updateHarness({ enabled: v })} label="Enable harness" />
+          <span className="text-[12px] text-ink">Subagents enabled</span>
+          <Toggle
+            checked={orch.enableSubagents}
+            onChange={(v) => store.updateOrchestration({ enableSubagents: v })}
+            label="Subagents"
+          />
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] text-ink">Agent mode</span>
-          <Toggle checked={h.agentMode} onChange={(v) => store.updateHarness({ agentMode: v })} label="Agent mode" />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] text-ink">Auto-approve tools</span>
-          <Toggle checked={h.autoApprove} onChange={(v) => store.updateHarness({ autoApprove: v })} label="Auto approve" />
+        <p className="mt-1 text-[10.5px] leading-relaxed text-faint">
+          Off means the planner answers alone and never calls{" "}
+          <code className="font-mono text-accent-pale">dispatch_subagents</code>.
+        </p>
+        <div className="mt-3 space-y-1.5">
+          {ROSTER.map((worker) => (
+            <div key={worker.key} className="flex items-center gap-2 rounded-lg border border-line bg-sunken px-2.5 py-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-soft" />
+              <span className="w-[62px] shrink-0 font-mono text-[10.5px] uppercase tracking-[0.08em] text-muted">
+                {worker.key}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-faint">{worker.what}</span>
+              {roleSelect(worker.role, `Model for the ${worker.key} worker`)}
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="space-y-2.5">
-        <Field label="Endpoint">
-          <input
-            value={h.endpoint}
-            onChange={(e) => store.updateHarness({ endpoint: e.target.value })}
-            className={cx(inputClass, "font-mono text-[11.5px]")}
-            placeholder="http://localhost:8787/harness"
-          />
-        </Field>
-        <Field label="Bearer token" hint="stored locally">
-          <div className="flex gap-1.5">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-line bg-surface p-3">
+          <Field label="Steps per turn" hint={`${h.maxSteps}`}>
             <input
-              type={reveal ? "text" : "password"}
-              value={h.apiKey}
-              onChange={(e) => store.updateHarness({ apiKey: e.target.value })}
-              className={cx(inputClass, "font-mono text-[11.5px]")}
-              placeholder="hrn_…"
+              type="range"
+              min={1}
+              max={40}
+              value={h.maxSteps}
+              onChange={(e) => store.updateHarness({ maxSteps: Number(e.target.value) })}
+              className="w-full"
             />
+          </Field>
+          <p className="mt-1 text-[10px] leading-relaxed text-faint">
+            Tool steps before it must answer with what it has.
+          </p>
+        </div>
+        <div className="rounded-xl border border-line bg-surface p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-ink">Ask before each tool call</span>
+            <Toggle
+              checked={!h.autoApprove}
+              onChange={(v) => store.updateHarness({ autoApprove: !v })}
+              label="Ask before each tool call"
+            />
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-faint">
+            The turn pauses on the tool card with Allow / Deny. Skill tools never pause — they only read
+            this repo.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-line bg-sunken p-3">
+        <div className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80">
+          what the last turn looked like
+        </div>
+        {lastRouted?.routing ? (
+          <p className="mt-1.5 font-mono text-[10.5px] leading-relaxed text-accent-pale/85">
+            {lastRouted.routing.steps?.length
+              ? lastRouted.routing.steps.join(" → ")
+              : `direct model (${lastRouted.routing.selectedModel})`}
+            <br />
+            {lastRouted.routing.category} · {lastRouted.routing.complexity} ·{" "}
+            {lastRouted.toolCalls?.length ?? 0} tool call{(lastRouted.toolCalls?.length ?? 0) === 1 ? "" : "s"}
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">
+            Send a message and its route shows up here.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-line bg-sunken px-3 py-2">
+        <button
+          onClick={() => setAdvancedOpen((open) => !open)}
+          aria-expanded={advancedOpen}
+          className="flex w-full items-center gap-2 text-left font-mono text-[9.5px] uppercase tracking-[0.14em] text-faint/80"
+        >
+          advanced · bridge endpoint &amp; token
+          <Chevron className={cx("ml-auto h-3 w-3 transition-transform", advancedOpen && "rotate-180")} />
+        </button>
+        {advancedOpen ? (
+          <div className="mt-2 space-y-2">
+            <Field label="Endpoint">
+              <input
+                value={h.endpoint}
+                onChange={(e) => store.updateHarness({ endpoint: e.target.value })}
+                className={cx(inputClass, "font-mono text-[11.5px]")}
+                placeholder="http://localhost:8787/harness"
+              />
+            </Field>
+            <Field label="Bearer token" hint="stored locally">
+              <div className="flex gap-1.5">
+                <input
+                  type={reveal ? "text" : "password"}
+                  value={h.apiKey}
+                  onChange={(e) => store.updateHarness({ apiKey: e.target.value })}
+                  className={cx(inputClass, "font-mono text-[11.5px]")}
+                  placeholder="hrn_…"
+                />
+                <button
+                  onClick={() => setReveal((r) => !r)}
+                  className="shrink-0 rounded-lg border border-line px-2 text-[10.5px] text-muted transition-colors hover:text-ink"
+                >
+                  {reveal ? "Hide" : "Show"}
+                </button>
+              </div>
+            </Field>
+            <p className="text-[10px] leading-relaxed text-faint/80">
+              Kept for a future external bridge — nothing in this build reads it.
+            </p>
             <button
-              onClick={() => setReveal((r) => !r)}
-              className="shrink-0 rounded-lg border border-line px-2 text-[10.5px] text-muted transition-colors hover:text-ink"
+              onClick={store.testHarness}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-line py-1.5 text-[11px] text-muted transition-colors hover:text-ink"
             >
-              {reveal ? "Hide" : "Show"}
+              {h.status === "connected" ? <Check className="h-3.5 w-3.5" /> : <Refresh className="h-3.5 w-3.5" />}
+              {h.status === "connecting" ? "Checking…" : "Check endpoint"}
             </button>
           </div>
-        </Field>
-        <Field label="Max steps" hint={`${h.maxSteps} per turn`}>
-          <input
-            type="range"
-            min={1}
-            max={40}
-            value={h.maxSteps}
-            onChange={(e) => store.updateHarness({ maxSteps: Number(e.target.value) })}
-            className="w-full"
-          />
-        </Field>
-      </div>
-
-      <div>
-        <SectionTitle>Subagents</SectionTitle>
-        {h.subagents.length === 0 ? (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
-            None registered. Add the agent names your harness exposes.
-          </p>
         ) : null}
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {h.subagents.map((s) => (
-            <span
-              key={s}
-              className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-[3px] font-mono text-[10px] text-muted"
-            >
-              {s}
-              <button
-                onClick={() => store.updateHarness({ subagents: h.subagents.filter((x) => x !== s) })}
-                className="text-faint hover:text-danger"
-                aria-label={`Remove ${s}`}
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </span>
-          ))}
-          <button
-            onClick={() => store.updateHarness({ subagents: [...h.subagents, `agent-${h.subagents.length + 1}`] })}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-line px-2 py-[3px] text-[10px] text-faint hover:border-accent/40 hover:text-accent-pale"
-          >
-            <Plus className="h-2.5 w-2.5" /> add
-          </button>
-        </div>
       </div>
 
-      <button
-        onClick={store.testHarness}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/15 py-2 text-[11.5px] font-medium text-accent-pale transition-colors hover:bg-accent/25"
-      >
-        {h.status === "connected" ? (
-          <Check className="h-3.5 w-3.5" />
-        ) : (
-          <Refresh className={cx("h-3.5 w-3.5", h.status === "connecting" && "animate-spin")} />
-        )}
-        {h.status === "connecting" ? "Checking…" : h.status === "connected" ? "Marked reachable — check again" : "Check endpoint"}
-      </button>
+      <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2">
+        <span className="text-[12px] text-ink">Agent mode</span>
+        <Toggle
+          checked={h.agentMode}
+          onChange={(v) => store.updateHarness({ agentMode: v })}
+          label="Agent mode"
+        />
+      </div>
     </div>
   );
 }
@@ -883,40 +1011,30 @@ function SettingsTab() {
         >
           <span className="inline-flex items-center gap-1.5">
             <Sliders className="h-3 w-3 text-accent-soft" />
-            Customize role models
+            Role models
           </span>
-          <span className="font-mono text-[9.5px] text-faint">{rolesOpen ? "hide" : "edit"}</span>
+          <span className="font-mono text-[9.5px] text-faint">{rolesOpen ? "hide" : "show"}</span>
         </button>
 
         {rolesOpen && (
           <div className="space-y-2 border-t border-line/70 pt-2">
+            <p className="text-[10px] leading-relaxed text-faint">
+              Read-only here — the Agents window owns these bindings.
+            </p>
             {ROLE_LABELS.map((item) => (
-              <label key={item.key} className="block space-y-1">
+              <div key={item.key} className="space-y-1">
                 <span className="flex items-center justify-between text-[10.5px]">
                   <span className="text-ink/85">{item.label}</span>
                   <span className="text-[9.5px] text-faint">{item.hint}</span>
                 </span>
-                <select
-                  value={orch.roles[item.key]}
-                  onChange={(e) =>
-                    store.updateOrchestration({
-                      roles: { ...orch.roles, [item.key]: e.target.value },
-                    })
-                  }
-                  className={cx(inputClass, "py-1 text-[11px]")}
-                >
-                  {allModels
-                    .filter((m) => m.id !== "auto" && m.modality !== "embedding")
-                    .map((m) => (
-                      <option key={m.id} value={m.id} className="bg-panel">
-                        {m.label} ({m.id})
-                      </option>
-                    ))}
-                </select>
-              </label>
+                <p className="rounded-lg border border-line bg-sunken px-2.5 py-1 font-mono text-[10.5px] text-accent-pale">
+                  {orch.roles[item.key]}
+                </p>
+              </div>
             ))}
           </div>
         )}
+
       </div>
 
       <div className="space-y-2 rounded-xl border border-line bg-sunken p-2.5">

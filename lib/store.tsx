@@ -280,6 +280,8 @@ interface StoreValue extends Persisted {
   addSkill: (name: string, description: string, rules?: string) => void;
   updateSkill: (id: string, patch: Partial<Pick<Skill, "name" | "description" | "rules">>) => void;
   removeSkill: (id: string) => void;
+  /** Answers a parked tool call; "always" also remembers the server for this chat. */
+  resolveApproval: (callId: string, decision: "allow" | "always" | "deny", server?: string) => void;
   addServer: (server: Pick<McpServer, "name" | "transport" | "target" | "headers"> & { instructions?: string }) => void;
   /** Edits a server in place — used for the per-server instructions field. */
   updateServer: (id: string, patch: Partial<Pick<McpServer, "name" | "target" | "headers" | "instructions">>) => void;
@@ -314,6 +316,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const profileReadyRef = useRef<Promise<void> | null>(null);
   const knownCloudIdsRef = useRef<Set<string>>(new Set());
   const titledChatIdsRef = useRef<Set<string>>(new Set());
+  /** "Always allow" per chat, for this session only — never written to storage. */
+  const approvalsRef = useRef<Record<string, string[]>>({});
   const deletedChatIdsRef = useRef<Set<string>>(new Set());
 
   const userIdRef = useRef<string | undefined>(userId);
@@ -720,7 +724,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         enabled: s.harness.enabled,
         agentMode: s.harness.agentMode,
         maxSteps: s.harness.maxSteps,
+        autoApprove: s.harness.autoApprove,
       },
+      preapprovedServers: approvalsRef.current[s.activeId ?? ""] ?? [],
       orchestration: s.settings.orchestration,
       customModels: s.settings.customModels,
     };
@@ -792,8 +798,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             case "tool_call": {
-              const call = event as unknown as { id: string; server: string; name: string; args: unknown };
-              calls.push({ id: call.id, server: call.server, name: call.name, args: call.args, pending: true });
+              const call = event as unknown as {
+                id: string;
+                server: string;
+                name: string;
+                args: unknown;
+                awaiting?: boolean;
+              };
+              const entry: ToolCall = {
+                id: call.id,
+                server: call.server,
+                name: call.name,
+                args: call.args,
+                pending: true,
+                awaitingApproval: Boolean(call.awaiting),
+              };
+              const existing = calls.findIndex((c) => c.id === call.id);
+              if (existing >= 0) calls[existing] = { ...calls[existing], ...entry };
+              else calls.push(entry);
               patchMessage(chatId, botId, { toolCalls: [...calls] });
               return;
             }
@@ -1206,6 +1228,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, skills: s.skills.filter((k) => k.id !== id) }));
   }, []);
 
+  const resolveApproval = useCallback(
+    (callId: string, decision: "allow" | "always" | "deny", server?: string) => {
+      const chatId = stateRef.current.activeId;
+      const allow = decision !== "deny";
+      if (decision === "always" && server && chatId) {
+        const current = approvalsRef.current[chatId] ?? [];
+        approvalsRef.current[chatId] = current.includes(server) ? current : [...current, server];
+      }
+      if (chatId) {
+        setState((s) => ({
+          ...s,
+          chats: s.chats.map((chat) =>
+            chat.id !== chatId
+              ? chat
+              : {
+                  ...chat,
+                  messages: chat.messages.map((message) =>
+                    message.toolCalls?.some((tool) => tool.id === callId)
+                      ? {
+                          ...message,
+                          toolCalls: message.toolCalls.map((tool) =>
+                            tool.id !== callId
+                              ? tool
+                              : {
+                                  ...tool,
+                                  awaitingApproval: false,
+                                  pending: allow,
+                                  ...(allow ? {} : { ok: false, error: "Denied — the call was not sent." }),
+                                },
+                          ),
+                        }
+                      : message,
+                  ),
+                },
+          ),
+        }));
+      }
+      void fetch("/api/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: callId, allow }),
+      }).catch(() => {
+        /* the turn times out on its own if this never lands */
+      });
+    },
+    [],
+  );
+
   const addServer = useCallback(
     (server: Pick<McpServer, "name" | "transport" | "target" | "headers"> & { instructions?: string }) => {
       if (!server.name.trim() || !server.target.trim()) return;
@@ -1445,6 +1515,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addSkill,
       updateSkill,
       removeSkill,
+      resolveApproval,
       addServer,
       updateServer,
       importServers,
@@ -1480,6 +1551,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addSkill,
       updateSkill,
       removeSkill,
+      resolveApproval,
       addServer,
       updateServer,
       importServers,
