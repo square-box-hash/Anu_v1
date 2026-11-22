@@ -26,6 +26,7 @@ const config: Config = {
         sunken: "var(--sunken)",
         field: "var(--field)",
         scrim: "var(--scrim)",
+        scrimsoft: "var(--scrim-soft)",
         danger: "rgb(var(--danger) / <alpha-value>)",
         ok: "rgb(var(--ok) / <alpha-value>)",
         warn: "rgb(var(--warn) / <alpha-value>)",

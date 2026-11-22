@@ -33,6 +33,7 @@
   --sunken: rgba(0, 0, 0, 0.25);
   --field: rgba(0, 0, 0, 0.4);
   --scrim: rgba(0, 0, 0, 0.62);
+  --scrim-soft: rgba(4, 3, 8, 0.55);
 
   /* status */
   --danger: 253 164 175;
@@ -73,6 +74,7 @@
   --sunken: rgba(109, 40, 217, 0.05);
   --field: #ffffff;
   --scrim: rgba(26, 21, 38, 0.35);
+  --scrim-soft: rgba(26, 21, 38, 0.25);
 
   --danger: 190 18 60;
   --ok: 4 120 87;
@@ -112,6 +114,7 @@
   --sunken: rgba(0, 0, 0, 0.28);
   --field: rgba(0, 0, 0, 0.42);
   --scrim: rgba(10, 4, 16, 0.65);
+  --scrim-soft: rgba(10, 4, 16, 0.5);
 
   --danger: 251 113 133;
   --ok: 134 239 172;

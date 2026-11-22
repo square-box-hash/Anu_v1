@@ -4,13 +4,10 @@ import React, { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
 import { cx, groupByDay, relativeTime } from "@/lib/utils";
-import { SECTIONS } from "./Rail";
 import type { Section } from "./Rail";
-import { PanelBody } from "./RightPanel";
 import {
   Bolt,
   BookOpen,
-  Chevron,
   Clock,
   Layers,
   LogOut,
@@ -42,12 +39,10 @@ const SOON_ITEMS = [
 ];
 
 export default function Sidebar({
-  section,
   onSection,
   onClose,
   onCollapse,
 }: {
-  section: Section;
   onSection: (section: Section) => void;
   onClose?: () => void;
   onCollapse?: () => void;
@@ -74,7 +69,6 @@ export default function Sidebar({
   }, [store.chats, query]);
 
   const groups = groupByDay(filtered);
-  const activeSection = SECTIONS.find((s) => s.id === section);
   const agents = store.harness.subagents;
 
   return (
@@ -103,8 +97,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {section === "chats" ? (
-        <>
+      <>
           {/* primary actions */}
           <div className="px-2 pt-3">
             <button
@@ -283,27 +276,7 @@ export default function Sidebar({
               ))
             )}
           </div>
-        </>
-      ) : (
-        <>
-          <div className="flex items-center gap-2 px-3 pt-3">
-            <button
-              onClick={() => onSection("chats")}
-              className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11.5px] text-muted transition-colors hover:bg-hover hover:text-ink"
-            >
-              <Chevron className="h-3 w-3 rotate-90" />
-              Chats
-            </button>
-            <span className="ml-auto font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">
-              {activeSection?.label}
-            </span>
-          </div>
-
-          <div className="mt-2 flex-1 overflow-y-auto px-3 pb-4">
-            {activeSection && <PanelBody tab={activeSection.id as Exclude<Section, "chats">} />}
-          </div>
-        </>
-      )}
+      </>
 
       {/* footer */}
       <div className="border-t border-line px-2 py-2">
