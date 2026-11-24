@@ -161,6 +161,8 @@ export interface ChatRequest {
   harness?: { enabled: boolean; agentMode: boolean; maxSteps: number; autoApprove?: boolean };
   /** Servers this chat has said "always allow" for; they skip the pause. */
   preapprovedServers?: string[];
+  /** AnuMemory switches for this turn. Absent means on. */
+  memory?: { enabled?: boolean; paused?: boolean };
   orchestration?: OrchestrationConfig;
   customModels?: CustomModelConfig[];
 }

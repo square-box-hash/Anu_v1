@@ -48,6 +48,8 @@ import type {
   ToolCall,
 } from "./types";
 import { titleFrom, uid } from "./utils";
+import { applyOperations, listChatNotes, listDrafts, markDraft, saveDraft } from "./memory/client";
+import type { Draft, Note } from "./memory/types";
 
 const STORAGE_PREFIX = "nebula.chat.v2";
 
@@ -274,6 +276,10 @@ async function ensureUserDocs(user: User): Promise<void> {
 
 interface StoreValue extends Persisted {
   activeChat: Chat | null;
+  /** AnuMemory: this chat's notes and the lines still waiting to be filed. */
+  memoryNotes: Note[];
+  memoryDrafts: Draft[];
+  refreshMemory: () => Promise<void>;
   /** True when this account can mirror the workspace to Firestore. */
   synced: boolean;
   /** Why the last workspace sync failed, if it did. */
@@ -332,6 +338,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [repoSkills, setRepoSkills] = useState<RepoSkill[]>([]);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [memoryNotes, setMemoryNotes] = useState<Note[]>([]);
+  const [memoryDrafts, setMemoryDrafts] = useState<Draft[]>([]);
   const [pendingQuote, setPendingQuote] = useState<QuoteRef | null>(null);
   const pendingQuoteRef = useRef<QuoteRef | null>(null);
   pendingQuoteRef.current = pendingQuote;
@@ -852,6 +860,95 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const refreshMemory = useCallback(async () => {
+    const current = userIdRef.current;
+    const chatId = stateRef.current.activeId;
+    if (!current || !chatId) {
+      setMemoryNotes([]);
+      setMemoryDrafts([]);
+      return;
+    }
+    try {
+      const [notes, drafts] = await Promise.all([listChatNotes(current, chatId), listDrafts(current, chatId)]);
+      setMemoryNotes(notes);
+      setMemoryDrafts(drafts);
+    } catch {
+      /* a notebook that cannot be read is not worth an error banner */
+    }
+  }, []);
+
+  /**
+   * Files whatever this turn jotted. The model proposes operations, the browser
+   * applies them, and a draft is only marked filed once its writes have landed —
+   * so a crash mid-sync loses nothing.
+   */
+  const fileDrafts = useCallback(
+    async (chatId: string) => {
+      const current = userIdRef.current;
+      if (!current) return;
+      let drafts: Draft[] = [];
+      try {
+        drafts = await listDrafts(current, chatId);
+      } catch {
+        return;
+      }
+      if (!drafts.length) return;
+
+      const notes = await listChatNotes(current, chatId).catch(() => [] as Note[]);
+      const chat = stateRef.current.chats.find((entry) => entry.id === chatId);
+      const turns = (chat?.messages ?? [])
+        .slice(-4)
+        .map((message) => ({ role: message.role, content: message.content.slice(0, 2000) }));
+
+      try {
+        const res = await fetch("/api/memory/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            drafts: drafts.map((draft) => ({
+              id: draft.id,
+              text: draft.text,
+              topic: draft.topic,
+              kind: draft.kind,
+              links: draft.links,
+            })),
+            notes: notes.map((note) => ({
+              id: note.id,
+              title: note.title,
+              summary: note.summary,
+              aliases: note.aliases,
+            })),
+            turns,
+          }),
+        });
+        const data = (await res.json()) as { operations?: Parameters<typeof applyOperations>[2] };
+        const operations = data.operations ?? [];
+        if (!operations.length) return;
+
+        await applyOperations(current, chatId, operations);
+        for (const draft of drafts) {
+          const filed = operations.some((op) => op.draftId === draft.id && op.op !== "no_op");
+          await markDraft(current, chatId, draft.id, {
+            status: filed ? "filed" : "dropped",
+            resultOps: operations
+              .filter((op) => op.draftId === draft.id)
+              .map((op) => ("noteId" in op ? `${op.op}:${op.noteId}` : op.op)),
+          }).catch(() => undefined);
+        }
+        await refreshMemory();
+      } catch {
+        for (const draft of drafts) {
+          const retries = (draft.retries ?? 0) + 1;
+          await markDraft(current, chatId, draft.id, {
+            retries,
+            status: retries >= 3 ? "failed" : "pending",
+          }).catch(() => undefined);
+        }
+      }
+    },
+    [refreshMemory],
+  );
+
   const runTurn = useCallback(
     async (chatId: string, botId: string, payload: ChatRequest, seedChat?: Chat) => {
       abortRef.current = false;
@@ -956,6 +1053,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   endedAt: Date.now(),
                 };
                 patchMessage(chatId, botId, { toolCalls: [...calls] });
+
+                // jot writes nothing itself: the draft lands here, in the one
+                // place that talks to Firestore.
+                if (calls[index].name === "jot" && result.ok) {
+                  try {
+                    const payload = JSON.parse(result.content) as {
+                      stored?: boolean;
+                      draft?: Omit<Draft, "id" | "at">;
+                    };
+                    const owner = userIdRef.current;
+                    if (payload.stored && payload.draft && owner) {
+                      void saveDraft(owner, chatId, payload.draft)
+                        .then(() => refreshMemory())
+                        .catch(() => undefined);
+                    }
+                  } catch {
+                    /* a jot that did not parse is simply not stored */
+                  }
+                }
               }
               return;
             }
@@ -1052,11 +1168,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       patchMessage(chatId, botId, finalPatch);
       setStreaming(false);
 
+      void fileDrafts(chatId);
+
       const latestChat = buildFinalizedChat(finalPatch);
       if (latestChat) void syncChatToCloud(latestChat).catch(() => {});
       if (!hadError && !abortRef.current) void maybeTitleChat(chatId);
     },
-    [patchMessage, syncChatToCloud, maybeTitleChat],
+    [patchMessage, syncChatToCloud, maybeTitleChat, fileDrafts, refreshMemory],
   );
 
   const send = useCallback(
@@ -1623,6 +1741,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       activeChat,
       synced: canCloudSync,
       syncError,
+      memoryNotes,
+      memoryDrafts,
+      refreshMemory,
       repoSkills,
       toggleRepoSkill,
       refreshRepoSkills,
@@ -1682,6 +1803,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       resolveApproval,
       syncError,
       canCloudSync,
+      memoryNotes,
+      memoryDrafts,
+      refreshMemory,
       addServer,
       updateServer,
       importServers,

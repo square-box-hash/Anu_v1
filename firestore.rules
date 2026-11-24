@@ -139,6 +139,35 @@ service cloud.firestore {
         allow delete: if isValidId(userId) && docId == 'config' && isVerifiedOwner(userId);
       }
 
+      // AnuMemory: a chat's notebook. Read and written by the owner only —
+      // the browser writes these today, so the rules are the guard.
+      match /chats/{chatId}/notes/{noteId} {
+        allow read: if isValidId(userId) && isValidId(chatId) && isOwner(userId);
+        allow create, update: if isValidId(userId)
+          && isValidId(chatId)
+          && isValidId(noteId)
+          && isVerifiedOwner(userId)
+          && incoming().scope == 'chat'
+          && incoming().title is string
+          && incoming().title.size() <= 120
+          && incoming().facts is list
+          && incoming().facts.size() <= 40;
+        allow delete: if isValidId(userId) && isValidId(chatId) && isVerifiedOwner(userId);
+      }
+
+      match /chats/{chatId}/drafts/{draftId} {
+        allow read: if isValidId(userId) && isValidId(chatId) && isOwner(userId);
+        allow create, update: if isValidId(userId)
+          && isValidId(chatId)
+          && isValidId(draftId)
+          && isVerifiedOwner(userId)
+          && incoming().text is string
+          && incoming().text.size() > 0
+          && incoming().text.size() <= 300
+          && incoming().status in ['pending', 'filing', 'filed', 'dropped', 'failed'];
+        allow delete: if isValidId(userId) && isValidId(chatId) && isVerifiedOwner(userId);
+      }
+
       match /chats/{chatId} {
         allow get: if isValidId(userId) && isValidId(chatId) && isOwner(userId);
         allow list: if isValidId(userId) && isOwner(userId) && resource.data.userId == request.auth.uid;
