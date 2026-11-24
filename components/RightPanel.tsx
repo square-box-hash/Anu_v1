@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { TRANSLATE_LANGUAGES, getAllModels } from "@/lib/models";
 import { useStore } from "@/lib/store";
 import type { CustomModelConfig, McpTransport, ModelRole, RoleAssignments } from "@/lib/types";
@@ -23,7 +23,7 @@ import {
 } from "./Icons";
 import { Field, SectionTitle, StatusDot, Toggle, inputClass } from "./ui";
 
-export type PanelTab = "skills" | "connectors" | "harness" | "settings";
+export type PanelTab = "skills" | "connectors" | "harness" | "settings" | "memory";
 
 const TABS: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
   { id: "skills", label: "Skills", icon: <Bolt className="h-3.5 w-3.5" /> },
@@ -61,6 +61,100 @@ function SyncNote() {
     <p className="text-[10.5px] leading-relaxed text-ok/80">
       Synced to your account — this follows you to every device you sign in on.
     </p>
+  );
+}
+
+/**
+ * The notebook, read-only in stage 1: what this chat has filed, and the lines
+ * still waiting to be filed. Editing, forgetting and the main notebook come next.
+ */
+function MemoryTab() {
+  const store = useStore();
+  const chatId = store.activeChat?.id;
+
+  useEffect(() => {
+    void store.refreshMemory();
+    // Only when the chat changes: filing refreshes it after every turn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
+
+  const notes = store.memoryNotes;
+  const drafts = store.memoryDrafts;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <SectionTitle right={<span className="font-mono text-[10px] text-faint">{notes.length} notes</span>}>
+          This chat
+        </SectionTitle>
+        <p className="mt-1 text-[11px] leading-relaxed text-faint">
+          Anu jots a line when something is worth keeping, and files it into these notes after the
+          reply. Facts you stated and facts it inferred are kept apart.
+        </p>
+      </div>
+
+      {notes.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-line px-3 py-5 text-center text-[11px] leading-relaxed text-faint">
+          Nothing filed yet. A decision, a correction or something about your project gets noted here.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {notes.map((note) => (
+            <div key={note.id} className="rounded-xl border border-line bg-surface p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{note.title}</span>
+                <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-wider text-faint">
+                  {note.facts.length} fact{note.facts.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {note.summary ? (
+                <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-faint">{note.summary}</p>
+              ) : null}
+              <ul className="mt-1.5 space-y-1">
+                {note.facts.slice(0, 4).map((fact, index) => (
+                  <li key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed">
+                    <span
+                      className={cx(
+                        "mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full",
+                        fact.tag === "stated" ? "bg-accent-soft" : "bg-faint/60",
+                      )}
+                      title={fact.tag === "stated" ? "you said this" : "inferred"}
+                    />
+                    <span className="min-w-0 text-ink/85">{fact.text}</span>
+                  </li>
+                ))}
+              </ul>
+              {note.links.length ? (
+                <p className="mt-1.5 text-[10px] text-faint">
+                  links · {note.links.map((link) => link.to).join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border-t border-line pt-3">
+        <SectionTitle right={<span className="font-mono text-[10px] text-faint">{drafts.length} pending</span>}>
+          Waiting to be filed
+        </SectionTitle>
+        {drafts.length === 0 ? (
+          <p className="mt-1 text-[11px] leading-relaxed text-faint">Nothing pending.</p>
+        ) : (
+          <ul className="mt-1.5 space-y-1">
+            {drafts.map((draft) => (
+              <li key={draft.id} className="rounded-lg border border-line bg-sunken px-2.5 py-1.5">
+                <div className="flex items-center gap-2 text-[10px] text-faint">
+                  <span className="truncate">{draft.topic}</span>
+                  <span className="ml-auto shrink-0 font-mono uppercase tracking-wider">{draft.status}</span>
+                </div>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink/85">{draft.text}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1226,6 +1320,7 @@ function SettingsTab() {
 export function PanelBody({ tab }: { tab: PanelTab }) {
   return (
     <>
+      {tab === "memory" && <MemoryTab />}
       {tab === "skills" && <SkillsTab />}
       {tab === "connectors" && <ConnectorsTab />}
       {tab === "harness" && <HarnessTab />}

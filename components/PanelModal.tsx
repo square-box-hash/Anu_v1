@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { PanelBody } from "./RightPanel";
 import type { PanelTab } from "./RightPanel";
 import { cx } from "@/lib/utils";
-import { Bolt, Layers, Plug, Sliders, X } from "./Icons";
+import { Bolt, BookOpen, Layers, Plug, Sliders, X } from "./Icons";
 
 /** Heading and one-line hint per panel, so the window explains itself. */
 const TITLES: Record<PanelTab, { label: string; hint: string; Icon: (p: { className?: string }) => React.ReactElement }> = {
@@ -24,6 +24,11 @@ const TITLES: Record<PanelTab, { label: string; hint: string; Icon: (p: { classN
     hint: "The four stages a turn passes through, and what each one costs.",
     Icon: Layers,
   },
+  memory: {
+    label: "Notebook",
+    hint: "Notes Anu kept from this chat: what you stated, what it inferred, and what is still pending.",
+    Icon: BookOpen,
+  },
   settings: {
     label: "Models and config",
     hint: "Which model answers, how it routes, and what it costs.",
@@ -31,7 +36,7 @@ const TITLES: Record<PanelTab, { label: string; hint: string; Icon: (p: { classN
   },
 };
 
-const ORDER: PanelTab[] = ["connectors", "skills", "harness", "settings"];
+const ORDER: PanelTab[] = ["memory", "connectors", "skills", "harness", "settings"];
 
 /**
  * A panel is a window, not a sidebar page: opening one centres it over the

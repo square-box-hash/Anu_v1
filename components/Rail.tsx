@@ -4,7 +4,7 @@ import React from "react";
 import { cx } from "@/lib/utils";
 import { useTheme } from "@/lib/theme";
 import Logo from "./Logo";
-import { Bolt, Bot, Layers, Moon, Palette, Plug, Sliders, Sun } from "./Icons";
+import { Bolt, BookOpen, Bot, Layers, Moon, Palette, Plug, Sliders, Sun } from "./Icons";
 import type { PanelTab } from "./RightPanel";
 
 export type Section = "chats" | PanelTab;
@@ -12,6 +12,7 @@ export type Section = "chats" | PanelTab;
 export const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: "chats", label: "Chats", icon: <Bot className="h-[17px] w-[17px]" /> },
   { id: "skills", label: "Skills", icon: <Bolt className="h-[17px] w-[17px]" /> },
+  { id: "memory", label: "Notebook", icon: <BookOpen className="h-[17px] w-[17px]" /> },
   { id: "connectors", label: "Connectors", icon: <Plug className="h-[17px] w-[17px]" /> },
   { id: "harness", label: "Agents", icon: <Layers className="h-[17px] w-[17px]" /> },
   { id: "settings", label: "Models & config", icon: <Sliders className="h-[17px] w-[17px]" /> },

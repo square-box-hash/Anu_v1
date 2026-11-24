@@ -16,6 +16,8 @@ import type { Content, Part } from "@/lib/providers/gemini";
 import { APPROVAL_TIMEOUT_MS, waitForApproval } from "@/lib/approvals";
 import { callTool, listAllTools } from "@/lib/mcp";
 import { extractSources } from "@/lib/sources";
+import { isMemoryTool, runMemoryTool, MEMORY_TOOL_DECLARATIONS } from "@/lib/memory/tools";
+import type { JotBudget } from "@/lib/memory/tools";
 import type { McpTool } from "@/lib/mcp";
 import type { McpServerConfig } from "@/lib/mcp";
 import { MEMORY_CONFIG } from "@/lib/memory";
@@ -409,7 +411,12 @@ export async function POST(request: Request) {
           ? allSkills.filter((skill) => enabledSlugs.includes(skill.slug))
           : allSkills;
 
+        // One budget per request, so a turn can jot at most a handful of lines.
+        const jotBudget: JotBudget = { used: 0 };
+        const memoryOn = body.memory?.enabled !== false && body.memory?.paused !== true;
+
         const declarations = [
+          ...(memoryOn ? MEMORY_TOOL_DECLARATIONS : []),
           ...toFunctionDeclarations(tools),
           ...(activeSkills.length ? SKILL_TOOL_DECLARATIONS : []),
           ...(allowSubagents ? [SUBAGENT_TOOL_DECLARATION] : []),
@@ -519,6 +526,22 @@ export async function POST(request: Request) {
                   id: call.id,
                   name: call.name,
                   response: { results: settled },
+                },
+              });
+              continue;
+            }
+
+            if (isMemoryTool(call.name)) {
+              send({ type: "tool_call", id, server: "memory", name: call.name, args: call.args });
+              const result = runMemoryTool(call.name, call.args, jotBudget);
+              send({ type: "tool_result", id, ok: result.ok, content: result.content, error: result.error });
+              responseParts.push({
+                functionResponse: {
+                  id: call.id,
+                  name: call.name,
+                  response: result.ok
+                    ? { result: result.content.slice(0, 2000) }
+                    : { error: result.error ?? "jot failed" },
                 },
               });
               continue;
