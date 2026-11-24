@@ -30,6 +30,8 @@ const config: Config = {
         danger: "rgb(var(--danger) / <alpha-value>)",
         ok: "rgb(var(--ok) / <alpha-value>)",
         warn: "rgb(var(--warn) / <alpha-value>)",
+        warnbg: "var(--warn-bg)",
+        warnline: "var(--warn-line)",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],

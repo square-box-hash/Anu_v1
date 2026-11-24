@@ -2,26 +2,27 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-export type Theme = "dark" | "light" | "plum";
+export type Theme = "dark" | "light" | "plum" | "lumen";
 
 export const THEMES: { id: Theme; label: string; hint: string }[] = [
   { id: "dark", label: "Noir", hint: "Near-black violet canvas" },
   { id: "light", label: "Paper", hint: "The same purple on white" },
   { id: "plum", label: "Amethyst", hint: "Warm fuchsia-violet" },
+  { id: "lumen", label: "Lumen", hint: "The design pass: serif reading, ink on paper" },
 ];
 
 export const THEME_STORAGE_KEY = "anu.theme";
 const DEFAULT_THEME: Theme = "dark";
 
 export function isTheme(value: unknown): value is Theme {
-  return value === "dark" || value === "light" || value === "plum";
+  return value === "dark" || value === "light" || value === "plum" || value === "lumen";
 }
 
 /**
  * Runs before first paint so the page never flashes the wrong palette.
  * Inlined into <head> by app/layout.tsx.
  */
-export const themeInitScript = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");if(t!=="dark"&&t!=="light"&&t!=="plum")t="${DEFAULT_THEME}";var r=document.documentElement;r.dataset.theme=t;r.style.colorScheme=t==="light"?"light":"dark";}catch(e){}})();`;
+export const themeInitScript = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");if(t!=="dark"&&t!=="light"&&t!=="plum"&&t!=="lumen")t="${DEFAULT_THEME}";var r=document.documentElement;r.dataset.theme=t;r.style.colorScheme=t==="light"?"light":"dark";}catch(e){}})();`;
 
 interface ThemeContextValue {
   theme: Theme;

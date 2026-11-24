@@ -21,7 +21,7 @@ import {
   Terminal,
   X,
 } from "./Icons";
-import { StatusDot } from "./ui";
+import { StatusDot, Toggle } from "./ui";
 
 export function focusComposer() {
   const el = document.getElementById("composer-input") as HTMLTextAreaElement | null;
@@ -63,6 +63,7 @@ export default function Composer({ variant = "dock" }: { variant?: "dock" | "her
   const store = useStore();
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Attachment[]>([]);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [menu, setMenu] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -445,14 +446,80 @@ export default function Composer({ variant = "dock" }: { variant?: "dock" | "her
 
             <div className="mx-1 hidden h-4 w-px bg-line sm:block" />
 
-            <span className="hidden items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] text-muted sm:inline-flex" title="Active skills">
-              <Bolt className="h-3 w-3 text-accent-soft" />
-              {enabledSkills}
-            </span>
-            <span className="hidden items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] text-muted sm:inline-flex" title="Connected MCP servers">
-              <Terminal className="h-3 w-3 text-accent-soft" />
-              {enabledServers}
-            </span>
+            {/* What this turn can actually use, and a switch for each. */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setToolsOpen((open) => !open)}
+                aria-expanded={toolsOpen}
+                aria-label="Tools this turn can use"
+                className={cx(
+                  "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors",
+                  toolsOpen
+                    ? "border-accent/45 bg-accent/15 text-accent-pale"
+                    : "border-line bg-surface text-muted hover:text-ink",
+                )}
+              >
+                <Terminal className="h-3 w-3" />
+                Tools {enabledServers + enabledSkills}
+              </button>
+              {toolsOpen ? (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setToolsOpen(false)} />
+                  <div className="absolute bottom-[calc(100%+8px)] left-0 z-40 w-[290px] rounded-xl border border-linestrong bg-panel p-2 shadow-2xl">
+                    <p className="px-2 pb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-faint/80">
+                      this chat
+                    </p>
+                    {store.servers.length === 0 && store.skills.length === 0 ? (
+                      <p className="px-2 py-1.5 text-[11px] leading-relaxed text-faint">
+                        No connectors or rules yet — add them under Connectors and Skills.
+                      </p>
+                    ) : null}
+                    {store.servers.map((server) => (
+                      <button
+                        key={server.id}
+                        type="button"
+                        onClick={() => store.toggleServer(server.id)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] text-ink">{server.name}</span>
+                          <span className="block truncate text-[10px] text-faint">
+                            {server.tools?.length ? `${server.tools.length} tools` : server.transport}
+                          </span>
+                        </span>
+                        <Toggle checked={server.enabled} onChange={() => store.toggleServer(server.id)} label={server.name} />
+                      </button>
+                    ))}
+                    {store.skills.map((skill) => (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        onClick={() => store.toggleSkill(skill.id)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] text-ink">{skill.name}</span>
+                          <span className="block truncate text-[10px] text-faint">{skill.description || "rule"}</span>
+                        </span>
+                        <Toggle checked={skill.enabled} onChange={() => store.toggleSkill(skill.id)} label={skill.name} />
+                      </button>
+                    ))}
+                    <div className="mt-1 flex items-center gap-2 border-t border-line px-2 pt-1.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[12px] text-ink">Agent mode</span>
+                        <span className="block text-[10px] text-faint">Chains tool steps, asks first</span>
+                      </span>
+                      <Toggle
+                        checked={store.harness.agentMode}
+                        onChange={(value) => store.updateHarness({ agentMode: value })}
+                        label="Agent mode"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
             <button
               onClick={() => store.updateHarness({ enabled: !store.harness.enabled })}
               className={cx(

@@ -39,6 +39,8 @@
   --danger: 253 164 175;
   --ok: 110 231 183;
   --warn: 253 230 138;
+  --warn-bg: rgba(253, 230, 138, 0.1);
+  --warn-line: rgba(253, 230, 138, 0.32);
 
   /* atmosphere */
   --glow-a: rgba(139, 92, 246, 0.12);
@@ -79,6 +81,8 @@
   --danger: 190 18 60;
   --ok: 4 120 87;
   --warn: 180 83 9;
+  --warn-bg: rgba(180, 83, 9, 0.09);
+  --warn-line: rgba(180, 83, 9, 0.32);
 
   --glow-a: rgba(139, 92, 246, 0.1);
   --glow-b: rgba(167, 139, 250, 0.1);
@@ -119,6 +123,8 @@
   --danger: 251 113 133;
   --ok: 134 239 172;
   --warn: 253 224 71;
+  --warn-bg: rgba(253, 224, 71, 0.1);
+  --warn-line: rgba(253, 224, 71, 0.32);
 
   --glow-a: rgba(232, 121, 249, 0.14);
   --glow-b: rgba(192, 38, 211, 0.12);
@@ -130,6 +136,56 @@
   --scroll: rgba(232, 121, 249, 0.24);
   --scroll-hover: rgba(232, 121, 249, 0.45);
   --logo-filter: none;
+}
+
+/* Lumen — the design pass. Ink on paper, a serif for reading and a grotesque
+   for the interface. Its own fonts, so the other three themes keep theirs. */
+html[data-theme="lumen"] {
+  --font-inter: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-instrument: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+[data-theme="lumen"] {
+  color-scheme: light;
+  --bg: #faf8fd;
+  --bg-soft: #f1edf9;
+  --panel: #ffffff;
+  --panel-2: #f3effb;
+  --line: #e0d9f0;
+  --line-strong: #c4b9e0;
+  --text: #21122f;
+  --muted: #6f6585;
+  --faint: #8b819c;
+  --accent: #6a35e0;
+  --accent-soft: #7d4bf0;
+  --accent-pale: #4b1fb0;
+
+  --surface: #ffffff;
+  --hover: #ece5fc;
+  --sunken: #f3effb;
+  --field: #ffffff;
+  --scrim: rgba(20, 10, 40, 0.45);
+  --scrim-soft: rgba(20, 10, 40, 0.28);
+
+  --danger: 176 22 60;
+  --ok: 23 120 74;
+  --warn: 125 68 0;
+  --warn-bg: #fff3de;
+  --warn-line: #e8c98f;
+
+  --glow-a: rgba(106, 53, 224, 0.06);
+  --glow-b: rgba(106, 53, 224, 0.05);
+  --grid: rgba(106, 53, 224, 0.03);
+  --spot: rgba(106, 53, 224, 0.07);
+  --glass-a: rgba(255, 255, 255, 0.88);
+  --glass-b: rgba(250, 248, 253, 0.92);
+  --shadow-accent: rgba(106, 53, 224, 0.16);
+  --scroll: rgba(106, 53, 224, 0.18);
+  --scroll-hover: rgba(106, 53, 224, 0.36);
+  --logo-filter: brightness(0);
+  /* The user's own message sits in ink, not in the accent. */
+  --user-bg: #2a1648;
+  --user-text: #f6f1ff;
 }
 
 * {
@@ -223,6 +279,17 @@ textarea {
   animation: caret 1s steps(1, end) infinite;
 }
 
+@keyframes drawer {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+.animate-drawer {
+  animation: drawer 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer { animation: none; }
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -257,6 +324,48 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .md-body > :last-child {
   margin-bottom: 0;
+}
+
+/* Lumen reads in serif: the reply body, not the interface. */
+[data-theme="lumen"] .md-body {
+  font-family: var(--font-instrument);
+}
+[data-theme="lumen"] .md-body p {
+  font-size: 17px;
+  line-height: 1.68;
+}
+
+/* A cited paragraph: prose on the left, its sources in the margin. */
+.md-para {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 196px;
+  gap: 30px;
+  align-items: start;
+}
+.md-para > .md-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 3px;
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+@media (max-width: 1180px) {
+  .md-para {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .md-para > .md-notes {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+/* Lumen reads wider: the mockup's measure is a 960px column. */
+[data-theme="lumen"] .thread-col {
+  max-width: 980px;
 }
 
 /* GFM tables: zebra rows and a hover, so long comparisons stay readable. */
