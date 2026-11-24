@@ -40,6 +40,30 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Whether skills, servers and settings follow this person between devices. */
+function SyncNote() {
+  const store = useStore();
+  if (store.syncError) {
+    return (
+      <p className="rounded-lg border border-danger/40 bg-danger/10 px-2 py-1.5 text-[10.5px] leading-relaxed text-danger">
+        Not syncing: {store.syncError}
+      </p>
+    );
+  }
+  if (!store.synced) {
+    return (
+      <p className="text-[10.5px] leading-relaxed text-faint">
+        Only on this device — verify your email address to carry these to your other devices.
+      </p>
+    );
+  }
+  return (
+    <p className="text-[10.5px] leading-relaxed text-ok/80">
+      Synced to your account — this follows you to every device you sign in on.
+    </p>
+  );
+}
+
 function SkillsTab() {
   const store = useStore();
   const [name, setName] = useState("");
@@ -171,6 +195,7 @@ function SkillsTab() {
           The name and the one line ride in the system prompt every turn — keep the line short. The rules
           are the full instructions and travel with it.
         </p>
+        <SyncNote />
 
         {store.skills.length > 0 ? (
           <div className="space-y-1.5">
@@ -315,6 +340,9 @@ function ConnectorsTab() {
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
           Connected servers expose their tools to the model for the current chat. Nothing is connected by default.
         </p>
+        <div className="mt-1.5">
+          <SyncNote />
+        </div>
       </div>
 
       {store.servers.length === 0 ? (

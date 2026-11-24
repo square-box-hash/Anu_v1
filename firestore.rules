@@ -82,6 +82,18 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    // The workspace: skills, MCP servers, harness and settings. One document,
+    // mirrored so a connector added on one device shows up on the others.
+    function isValidWorkspace(data, userId) {
+      return data.keys().hasAll(['uid', 'payload', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'payload', 'updatedAt'])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.payload is map
+        && data.updatedAt is timestamp;
+    }
+
     match /users/{userId} {
       allow get: if isValidId(userId) && isOwner(userId);
       allow list: if false;
@@ -115,6 +127,16 @@ service cloud.firestore {
           && incoming().updatedAt == request.time
           && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
         allow delete: if isValidId(userId) && docId == 'info' && isVerifiedOwner(userId);
+      }
+
+      match /workspace/{docId} {
+        allow get, list: if isValidId(userId) && docId == 'config' && isOwner(userId);
+        allow create, update: if isValidId(userId)
+          && docId == 'config'
+          && isVerifiedOwner(userId)
+          && isValidWorkspace(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow delete: if isValidId(userId) && docId == 'config' && isVerifiedOwner(userId);
       }
 
       match /chats/{chatId} {

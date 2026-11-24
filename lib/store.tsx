@@ -95,6 +95,8 @@ function writeLocalSnapshot(key: string, payload: string): boolean {
 interface Persisted {
   chats: Chat[];
   activeId: string | null;
+  /** When the workspace (skills, servers, harness, settings) last changed here. */
+  configUpdatedAt: number;
   skills: Skill[];
   enabledRepoSkills: string[];
   servers: McpServer[];
@@ -106,6 +108,7 @@ function defaults(): Persisted {
   return {
     chats: [],
     activeId: null,
+    configUpdatedAt: 0,
     skills: [],
     enabledRepoSkills: [],
     servers: [],
@@ -148,6 +151,22 @@ function mergeSettings(raw?: Partial<Settings>): Settings {
       },
     },
     customModels: Array.isArray(raw?.customModels) ? raw.customModels : [],
+  };
+}
+
+/**
+ * The workspace — everything except the conversations. These are the settings
+ * people expect to find on whichever device they open, so they mirror to
+ * `users/{uid}/workspace/config` instead of living in one browser's storage.
+ */
+function workspaceFrom(state: Persisted) {
+  return {
+    skills: state.skills,
+    enabledRepoSkills: state.enabledRepoSkills,
+    servers: state.servers,
+    harness: state.harness,
+    settings: state.settings,
+    configUpdatedAt: state.configUpdatedAt,
   };
 }
 
@@ -255,6 +274,10 @@ async function ensureUserDocs(user: User): Promise<void> {
 
 interface StoreValue extends Persisted {
   activeChat: Chat | null;
+  /** True when this account can mirror the workspace to Firestore. */
+  synced: boolean;
+  /** Why the last workspace sync failed, if it did. */
+  syncError: string | null;
   repoSkills: RepoSkill[];
   toggleRepoSkill: (slug: string) => void;
   refreshRepoSkills: () => Promise<void>;
@@ -308,6 +331,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [streaming, setStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [repoSkills, setRepoSkills] = useState<RepoSkill[]>([]);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [pendingQuote, setPendingQuote] = useState<QuoteRef | null>(null);
   const pendingQuoteRef = useRef<QuoteRef | null>(null);
   pendingQuoteRef.current = pendingQuote;
@@ -400,6 +424,102 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       flushLocal();
     };
   }, [flushLocal]);
+
+  // ── workspace sync ───────────────────────────────────────────────────────
+  // Skills, MCP servers, the harness and settings used to live only in this
+  // browser's storage, so a connector added on the desktop was missing on the
+  // phone. They now mirror to users/{uid}/workspace/config; last write wins,
+  // and the newer side of the two is the one that survives a fresh device.
+  const configSignature = useMemo(
+    () => JSON.stringify([state.skills, state.enabledRepoSkills, state.servers, state.harness, state.settings]),
+    [state.skills, state.enabledRepoSkills, state.servers, state.harness, state.settings],
+  );
+  const lastConfigRef = useRef<string | null>(null);
+  const workspaceReadyRef = useRef(false);
+
+  useEffect(() => {
+    workspaceReadyRef.current = false;
+    lastConfigRef.current = null;
+    if (!hydrated || !user || !canCloudSync) return;
+
+    let cancelled = false;
+    const workspacePath = `users/${user.uid}/workspace/config`;
+    const workspaceRef = doc(db, "users", user.uid, "workspace", "config");
+
+    void (async () => {
+      try {
+        const snap = await getDoc(workspaceRef);
+        if (cancelled) return;
+        const remote = (snap.exists() ? snap.data().payload : null) as
+          | (Partial<Persisted> & { configUpdatedAt?: number })
+          | null;
+        const remoteTs = Number(remote?.configUpdatedAt ?? 0);
+
+        if (remote && remoteTs > stateRef.current.configUpdatedAt) {
+          setState((current) => ({
+            ...current,
+            skills: remote.skills ?? current.skills,
+            enabledRepoSkills: remote.enabledRepoSkills ?? current.enabledRepoSkills,
+            servers: remote.servers ?? current.servers,
+            harness: remote.harness ?? current.harness,
+            settings: mergeSettings(remote.settings),
+            configUpdatedAt: remoteTs,
+          }));
+          // Already in sync — do not bounce it straight back up.
+          lastConfigRef.current = JSON.stringify([
+            remote.skills,
+            remote.enabledRepoSkills,
+            remote.servers,
+            remote.harness,
+            mergeSettings(remote.settings),
+          ]);
+        }
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : "Could not read the workspace from your account.");
+        try {
+          handleFirestoreError(error, OperationType.GET, workspacePath);
+        } catch {
+          /* already surfaced in the panels */
+        }
+      } finally {
+        if (!cancelled) workspaceReadyRef.current = true;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, canCloudSync, hydrated]);
+
+  // Push local workspace edits, debounced so typing a rule does not write per key.
+  useEffect(() => {
+    if (!hydrated || !user || !canCloudSync || !workspaceReadyRef.current) return;
+    if (lastConfigRef.current === configSignature) return;
+
+    const timer = setTimeout(() => {
+      lastConfigRef.current = configSignature;
+      const stamp = Date.now();
+      const workspacePath = `users/${user.uid}/workspace/config`;
+      const payload = stripUndefined(workspaceFrom({ ...stateRef.current, configUpdatedAt: stamp }));
+      setState((current) => ({ ...current, configUpdatedAt: stamp }));
+      void setDoc(doc(db, "users", user.uid, "workspace", "config"), {
+        uid: user.uid,
+        payload,
+        updatedAt: serverTimestamp(),
+      }).then(() => setSyncError(null)).catch((error) => {
+        setSyncError(error instanceof Error ? error.message : "Could not save the workspace to your account.");
+        try {
+          handleFirestoreError(error, OperationType.WRITE, workspacePath);
+        } catch {
+          /* already surfaced in the panels */
+        }
+        // Let the next edit try again rather than sitting on a failed write.
+        lastConfigRef.current = null;
+      });
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [configSignature, hydrated, canCloudSync, user]);
 
   // Sync verified user's profile and chats with Firestore
   useEffect(() => {
@@ -1495,6 +1615,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       activeChat,
+      synced: canCloudSync,
+      syncError,
       repoSkills,
       toggleRepoSkill,
       refreshRepoSkills,
@@ -1552,6 +1674,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateSkill,
       removeSkill,
       resolveApproval,
+      syncError,
+      canCloudSync,
       addServer,
       updateServer,
       importServers,
