@@ -15,6 +15,7 @@ import {
 import type { Content, Part } from "@/lib/providers/gemini";
 import { APPROVAL_TIMEOUT_MS, waitForApproval } from "@/lib/approvals";
 import { callTool, listAllTools } from "@/lib/mcp";
+import { extractSources } from "@/lib/sources";
 import type { McpTool } from "@/lib/mcp";
 import type { McpServerConfig } from "@/lib/mcp";
 import { MEMORY_CONFIG } from "@/lib/memory";
@@ -58,6 +59,11 @@ const MARKDOWN_NOTE = [
  * to call it produces confident answers from memory, so the rule is written
  * down here — and it names the tools that are actually connected this turn.
  */
+const CITATION_NOTE =
+  "When a claim comes from a tool result, put its source number right after it, like [2]. " +
+  'Use only the numbers listed under "Numbered sources" in tool results. Never write URLs yourself. ' +
+  "Say which claims are only reported and not confirmed, and name who reported them.";
+
 function toolPolicyFor(tools: McpTool[]): string {
   if (!tools.length) {
     return [
@@ -124,6 +130,7 @@ function systemPromptFor(
   if (routeNote) blocks.push(routeNote);
 
   blocks.push(MARKDOWN_NOTE);
+  blocks.push(CITATION_NOTE);
 
   if (body.attachments?.length) {
     const fileSummaries = body.attachments.map((a) =>
@@ -410,6 +417,7 @@ export async function POST(request: Request) {
         }
 
         const contents: Content[] = toContents(body.messages);
+        const seenResults: { ok: boolean; content: string }[] = [];
         const orchestrationInstruction = allowSubagents
           ? `Orchestration active (${category}): For complex coding/multi-part tasks, output a concise plan and call "${SUBAGENT_TOOL_NAME}" to delegate focused sub-edits, unit tests, docstrings, or JSON extraction in parallel to Gemma 4 (26B/31B) or Gemini 3.5 Flash Lite before synthesizing your final answer.`
           : undefined;
@@ -560,12 +568,23 @@ export async function POST(request: Request) {
               error: result.error,
             });
 
+            // Hand the model a numbered list of the pages this result added, so
+            // its "[n]" markers can be resolved back to real URLs on screen.
+            const before = extractSources(seenResults).length;
+            seenResults.push({ ok: result.ok, content: result.content.slice(0, 4000) });
+            const fresh = extractSources(seenResults).slice(before);
+            const numbered = fresh.length
+              ? `\n\nNumbered sources (cite as [n]):\n${fresh
+                  .map((source) => `[${source.n}] ${source.title} - ${source.url}`)
+                  .join("\n")}`
+              : "";
+
             responseParts.push({
               functionResponse: {
                 id: call.id,
                 name: call.name,
                 response: result.ok
-                  ? { result: result.content.slice(0, 8000) }
+                  ? { result: result.content.slice(0, 8000) + numbered }
                   : { error: result.error ?? "tool failed" },
               },
             });
