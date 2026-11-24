@@ -42,7 +42,7 @@ export default function Rail({
   const { theme, cycleTheme, themes } = useTheme();
   const current = themes.find((t) => t.id === theme) ?? themes[0];
   const next = themes[(themes.findIndex((t) => t.id === theme) + 1) % themes.length];
-  const ThemeIcon = theme === "light" ? Sun : theme === "plum" ? Palette : Moon;
+  const ThemeIcon = theme === "light" || theme === "lumen" ? Sun : theme === "plum" ? Palette : Moon;
 
   return (
     <nav className="flex h-full w-[56px] shrink-0 flex-col items-center gap-1 border-r border-line bg-soft/60 py-3">

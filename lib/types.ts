@@ -23,6 +23,9 @@ export interface ToolCall {
   pending?: boolean;
   /** Parked until the person allows it — the call has not reached the server. */
   awaitingApproval?: boolean;
+  /** Client clock, so the trace can show how long each step took. */
+  startedAt?: number;
+  endedAt?: number;
 }
 
 export interface RoutingInfo {
@@ -68,6 +71,8 @@ export interface Message {
   createdAt: number;
   pending?: boolean;
   error?: boolean;
+  /** Wall time for the whole turn, measured on the client. */
+  durationMs?: number;
 }
 
 export interface Chat {

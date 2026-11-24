@@ -856,6 +856,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (chatId: string, botId: string, payload: ChatRequest, seedChat?: Chat) => {
       abortRef.current = false;
       setStreaming(true);
+      // Measured here so the trace card can report the real wall time.
+      const turnStartedAt = Date.now();
 
       let acc = "";
       let think = "";
@@ -932,6 +934,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 args: call.args,
                 pending: true,
                 awaitingApproval: Boolean(call.awaiting),
+                startedAt: calls.find((c) => c.id === call.id)?.startedAt ?? Date.now(),
               };
               const existing = calls.findIndex((c) => c.id === call.id);
               if (existing >= 0) calls[existing] = { ...calls[existing], ...entry };
@@ -949,6 +952,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   content: result.content,
                   error: result.error,
                   pending: false,
+                  awaitingApproval: false,
+                  endedAt: Date.now(),
                 };
                 patchMessage(chatId, botId, { toolCalls: [...calls] });
               }
@@ -1041,6 +1046,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         toolCalls: calls.length ? [...calls] : undefined,
         notices: notices.length ? [...notices] : undefined,
         pending: false,
+        durationMs: Date.now() - turnStartedAt,
         ...(hadError ? { error: true } : {}),
       };
       patchMessage(chatId, botId, finalPatch);

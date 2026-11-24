@@ -237,7 +237,7 @@ export default function ChatView({
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[760px] space-y-6 px-3.5 py-5 sm:space-y-7 sm:px-6 sm:py-6">
+          <div className="thread-col mx-auto w-full max-w-[760px] space-y-6 px-3.5 py-5 sm:space-y-7 sm:px-6 sm:py-6">
             {messages.map((m) => (
               <Message
                 key={m.id}

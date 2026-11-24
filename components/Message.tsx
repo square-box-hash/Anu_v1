@@ -12,6 +12,7 @@ import { estimateCost, formatCost, formatTokens } from "@/lib/pricing";
 import { useSpeech } from "@/lib/speech";
 import { useStore } from "@/lib/store";
 import { extractSources, linkCitations } from "@/lib/sources";
+import type { Source } from "@/lib/sources";
 import { cellAlignFrom, cx, formatBytes } from "@/lib/utils";
 import { focusComposer } from "./Composer";
 import {
@@ -145,29 +146,8 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         <Chevron className={cx("h-3 w-3 shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
       {call.awaitingApproval ? (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-accent/25 bg-accent/[0.06] px-3 py-2">
-          <span className="text-[10.5px] text-warn">Nothing has been sent yet.</span>
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={() => store.resolveApproval(call.id, "allow", call.server)}
-              className="rounded-md border border-accent/45 bg-accent/20 px-2 py-[3px] text-[10.5px] text-accent-pale transition-colors hover:bg-accent/30"
-            >
-              Allow
-            </button>
-            <button
-              onClick={() => store.resolveApproval(call.id, "always", call.server)}
-              title={`Stop asking about ${call.server} for this chat`}
-              className="rounded-md border border-line px-2 py-[3px] text-[10.5px] text-muted transition-colors hover:text-ink"
-            >
-              Always allow {call.server}
-            </button>
-            <button
-              onClick={() => store.resolveApproval(call.id, "deny", call.server)}
-              className="rounded-md border border-line px-2 py-[3px] text-[10.5px] text-danger transition-colors hover:bg-danger/10"
-            >
-              Deny
-            </button>
-          </div>
+        <div className="border-t border-warnline bg-warnbg px-3 py-1.5 text-[10.5px] text-warn">
+          Waiting for you — answer it above.
         </div>
       ) : null}
       {open ? (
@@ -188,6 +168,141 @@ function ToolCallCard({ call }: { call: ToolCall }) {
           ) : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Seconds with one decimal, the way the trace reads it. */
+function seconds(ms: number): string {
+  return `${(Math.max(0, ms) / 1000).toFixed(1)} s`;
+}
+
+/**
+ * A reply split into blocks, each with the sources it cites. Only plain prose
+ * gets a margin column — a list, table, heading or code block stays full width
+ * and keeps its own citations in the sources row underneath.
+ */
+function splitCited(text: string, sources: Source[]) {
+  const byN = new Map(sources.map((source) => [source.n, source]));
+  return text.split(/\n{2,}/).map((block) => {
+    const numbers = [...block.matchAll(/\[(\d{1,2})\](?!\()/g)]
+      .map((match) => Number(match[1]))
+      .filter((n) => byN.has(n));
+    const prose = !/^\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>|\||```|!\[)/.test(block);
+    return {
+      text: block,
+      notes: prose ? [...new Set(numbers)].map((n) => byN.get(n)!) : [],
+    };
+  });
+}
+
+/** How the turn actually spent its time: routing, each tool call, then the writing. */
+function TraceCard({ message }: { message: Msg }) {
+  const [open, setOpen] = useState(false);
+  const calls = message.toolCalls ?? [];
+  const total = message.durationMs ?? 0;
+  if (!total) return null;
+
+  const timed = calls.map((call) => ({
+    id: call.id,
+    name: call.name,
+    server: call.server,
+    ms: Math.max(0, (call.endedAt ?? call.startedAt ?? 0) - (call.startedAt ?? 0)),
+  }));
+  const toolMs = timed.reduce((sum, call) => sum + call.ms, 0);
+  const writingMs = Math.max(0, total - toolMs);
+  const segments = [...timed.map((t) => ({ ms: t.ms, accent: true })), { ms: writingMs, accent: false }];
+
+  const summary = timed.length
+    ? `Called ${timed.length} tool${timed.length === 1 ? "" : "s"}, then wrote the answer`
+    : "Answered directly";
+
+  return (
+    <div className="mb-3 max-w-[720px] overflow-hidden rounded-xl border border-line bg-panel">
+      <button
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="block w-full px-3.5 py-2.5 text-left transition-colors hover:bg-hover/60"
+      >
+        <div className="mb-2 flex gap-[3px]" aria-hidden="true">
+          {segments.map((segment, index) => (
+            <i
+              key={index}
+              className={cx("block h-1.5 rounded-sm", segment.accent ? "bg-accent" : "bg-linestrong")}
+              style={{ width: `${Math.max(4, (segment.ms / Math.max(1, total)) * 100)}%` }}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-[11.5px] text-muted">
+          <b className="font-medium text-ink">{summary}</b>
+          <em className="ml-auto font-mono not-italic tabular-nums">{seconds(total)}</em>
+          <Chevron className={cx("h-3 w-3 text-faint transition-transform", open && "rotate-180")} />
+        </div>
+      </button>
+      {open ? (
+        <ol className="border-t border-line px-3.5 py-2">
+          <li className="flex gap-2.5 py-1.5 text-[11.5px] text-muted">
+            <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-linestrong" />
+            <span className="min-w-0 flex-1 text-ink">
+              Routed to {message.routing?.selectedModel ?? message.model ?? "the model"}
+              {message.routing?.category ? ` · ${message.routing.category.replace(/_/g, " ")}` : ""}
+            </span>
+          </li>
+          {timed.map((call) => (
+            <li key={call.id} className="flex gap-2.5 py-1.5 text-[11.5px] text-muted">
+              <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+              <span className="min-w-0 flex-1 text-ink">
+                <span className="font-mono text-[11px]">{call.name}</span> · {call.server}
+              </span>
+              <em className="shrink-0 font-mono not-italic tabular-nums">{seconds(call.ms)}</em>
+            </li>
+          ))}
+          <li className="flex gap-2.5 py-1.5 text-[11.5px] text-muted">
+            <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-linestrong" />
+            <span className="min-w-0 flex-1 text-ink">Wrote the reply</span>
+            <em className="shrink-0 font-mono not-italic tabular-nums">{seconds(writingMs)}</em>
+          </li>
+        </ol>
+      ) : null}
+    </div>
+  );
+}
+
+/** The turn stops here until the person says yes. */
+function ApprovalCard({ call }: { call: ToolCall }) {
+  const store = useStore();
+  const target =
+    call.args && typeof call.args === "object"
+      ? Object.values(call.args as Record<string, unknown>).find((value) => typeof value === "string")
+      : undefined;
+
+  return (
+    <div className="mb-3 max-w-[720px] rounded-r-xl border border-warnline border-l-4 border-l-warn bg-warnbg px-4 py-3.5">
+      <h3 className="text-[13.5px] font-medium text-warn">Anu wants to use {call.server}</h3>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-ink/85">
+        The tool <code className="rounded border border-warnline bg-panel px-1.5 py-[1px] font-mono text-[11.5px]">{call.name}</code>{" "}
+        will run{typeof target === "string" ? ` on ${target.slice(0, 120)}` : ""}. Nothing has been sent yet.
+      </p>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        <button
+          onClick={() => store.resolveApproval(call.id, "allow", call.server)}
+          className="rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-medium text-[var(--bg)] transition-colors hover:brightness-110"
+        >
+          Allow once
+        </button>
+        <button
+          onClick={() => store.resolveApproval(call.id, "always", call.server)}
+          className="rounded-lg border border-linestrong bg-panel px-3 py-1.5 text-[12px] text-ink transition-colors hover:border-accent"
+        >
+          Always allow this tool
+        </button>
+        <button
+          onClick={() => store.resolveApproval(call.id, "deny", call.server)}
+          className="rounded-lg border border-linestrong bg-panel px-3 py-1.5 text-[12px] text-danger transition-colors hover:border-danger"
+        >
+          Deny
+        </button>
+      </div>
     </div>
   );
 }
@@ -726,10 +841,19 @@ export default function Message({
     () => extractSources(message.toolCalls ?? []),
     [message.toolCalls],
   );
-  const { text: bodyText, cited } = React.useMemo(
-    () => linkCitations(message.content, sources),
+  const blocks = React.useMemo(
+    () =>
+      splitCited(message.content, sources).map((block) => ({
+        ...block,
+        text: linkCitations(block.text, sources).text,
+      })),
     [message.content, sources],
   );
+  const cited = React.useMemo(() => {
+    const used = new Set(blocks.flatMap((block) => block.notes.map((note) => note.n)));
+    return sources.filter((source) => used.has(source.n));
+  }, [blocks, sources]);
+  const awaiting = (message.toolCalls ?? []).filter((call) => call.awaitingApproval);
 
   const quoteChip = quote ? (
     <div className="mb-1.5 rounded-xl border-l-2 border-accent/50 bg-surface px-3 py-1.5 text-[12px] leading-relaxed text-faint">
@@ -890,6 +1014,12 @@ export default function Message({
     <div className="group animate-rise" onContextMenu={openMenu} {...touchHandlers}>
       {quoteChip}
 
+      {!message.pending && message.durationMs ? <TraceCard message={message} /> : null}
+
+      {awaiting.map((call) => (
+        <ApprovalCard key={call.id} call={call} />
+      ))}
+
       {message.thinking ? (
         <ThinkingBlock
           text={message.thinking}
@@ -914,13 +1044,51 @@ export default function Message({
           onMouseUp={onSelect}
           onTouchEnd={endTouch}
         >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
-            components={components}
-          >
-            {normalizeMath(bodyText)}
-          </ReactMarkdown>
+          {blocks.map((block, index) =>
+            block.notes.length ? (
+              <div key={index} className="md-para">
+                <div className="min-w-0">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+                    components={components}
+                  >
+                    {normalizeMath(block.text)}
+                  </ReactMarkdown>
+                </div>
+                <div className="md-notes">
+                  {block.notes.map((source) => (
+                    <a
+                      key={source.n}
+                      id={`note-${message.id}-${source.n}`}
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="group/note grid grid-cols-[16px_1fr] gap-1.5 text-[11.5px] leading-snug text-muted no-underline transition-colors hover:text-ink"
+                    >
+                      <b className="font-mono text-[10.5px] font-bold text-accent-soft">{source.n}</b>
+                      <span className="min-w-0">
+                        <span className="text-ink group-hover/note:text-accent-pale">{source.title}</span>
+                        <small className="mt-0.5 block text-[10.5px] text-faint">
+                          {source.domain}
+                          {source.date ? ` · ${source.date}` : ""}
+                        </small>
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <ReactMarkdown
+                key={index}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+                components={components}
+              >
+                {normalizeMath(block.text)}
+              </ReactMarkdown>
+            ),
+          )}
         </div>
       )}
 
