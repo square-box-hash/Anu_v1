@@ -279,17 +279,6 @@ textarea {
   animation: caret 1s steps(1, end) infinite;
 }
 
-@keyframes drawer {
-  from { transform: translateX(100%); }
-  to { transform: none; }
-}
-.animate-drawer {
-  animation: drawer 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .animate-drawer { animation: none; }
-}
-
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
