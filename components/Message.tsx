@@ -11,6 +11,7 @@ import type { Message as Msg, ToolCall, Usage } from "@/lib/types";
 import { estimateCost, formatCost, formatTokens } from "@/lib/pricing";
 import { useSpeech } from "@/lib/speech";
 import { useStore } from "@/lib/store";
+import { extractSources, linkCitations } from "@/lib/sources";
 import { cellAlignFrom, cx, formatBytes } from "@/lib/utils";
 import { focusComposer } from "./Composer";
 import {
@@ -218,7 +219,22 @@ const components: Components = {
   em({ children }) {
     return <em className="text-ink/80">{children}</em>;
   },
-  a({ href, children }) {
+  a({ href, children, title }) {
+    // Citations arrive as links whose title starts with "src:" — render the
+    // number as a chip and keep the page name in the tooltip.
+    if (title?.startsWith("src:")) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={title.slice(4)}
+          className="mx-0.5 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded border border-accent/40 bg-accent/10 px-1 align-[1px] font-mono text-[9px] leading-none text-accent-pale no-underline transition-colors hover:bg-accent/25"
+        >
+          {children}
+        </a>
+      );
+    }
     return (
       <a
         href={href}
@@ -705,6 +721,16 @@ export default function Message({
 
   const quote = message.quote;
 
+  // Same numbering the server handed the model, derived from the tool results.
+  const sources = React.useMemo(
+    () => extractSources(message.toolCalls ?? []),
+    [message.toolCalls],
+  );
+  const { text: bodyText, cited } = React.useMemo(
+    () => linkCitations(message.content, sources),
+    [message.content, sources],
+  );
+
   const quoteChip = quote ? (
     <div className="mb-1.5 rounded-xl border-l-2 border-accent/50 bg-surface px-3 py-1.5 text-[12px] leading-relaxed text-faint">
       <div className="mb-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-faint/70">
@@ -893,10 +919,29 @@ export default function Message({
             rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
             components={components}
           >
-            {normalizeMath(message.content)}
+            {normalizeMath(bodyText)}
           </ReactMarkdown>
         </div>
       )}
+
+      {!message.pending && cited.length ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-faint/70">sources</span>
+          {cited.map((source) => (
+            <a
+              key={source.n}
+              href={source.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              title={source.title}
+              className="inline-flex max-w-[240px] items-center gap-1.5 rounded-md border border-line bg-surface px-1.5 py-[2px] text-[10px] text-muted transition-colors hover:border-accent/40 hover:text-accent-pale"
+            >
+              <span className="font-mono text-[9px] text-accent-soft">{source.n}</span>
+              <span className="truncate">{source.domain}</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
 
       {!message.pending && message.content ? actionBar("left") : null}
 
