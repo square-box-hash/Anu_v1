@@ -59,10 +59,13 @@ const MARKDOWN_NOTE = [
  * to call it produces confident answers from memory, so the rule is written
  * down here — and it names the tools that are actually connected this turn.
  */
-const CITATION_NOTE =
-  "When a claim comes from a tool result, put its source number right after it, like [2]. " +
-  'Use only the numbers listed under "Numbered sources" in tool results. Never write URLs yourself. ' +
-  "Say which claims are only reported and not confirmed, and name who reported them.";
+const CITATION_NOTE = [
+  "When a claim comes from a tool result, put its source number right after the claim, like [2],",
+  "and group them when several support one sentence: [1][3].",
+  'Use only the numbers listed under "Numbered sources" in tool results — never an id, hash, chunk',
+  "reference or URL that appears inside a result, and never a number you did not see in that list.",
+  "Say which claims are only reported and not confirmed, and name who reported them.",
+].join(" ");
 
 function toolPolicyFor(tools: McpTool[]): string {
   if (!tools.length) {
