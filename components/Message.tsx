@@ -22,6 +22,7 @@ import {
   Copy,
   Cpu,
   File,
+  Globe,
   Image as ImageIcon,
   Refresh,
   Sparkles,
@@ -233,15 +234,15 @@ function TraceCard({ message }: { message: Msg }) {
             />
           ))}
         </div>
-        <div className="flex items-center gap-2 text-[11.5px] text-muted">
+        <div className="flex items-center gap-2 text-[12.5px] text-muted">
           <b className="font-medium text-ink">{summary}</b>
-          <em className="ml-auto font-mono not-italic tabular-nums">{seconds(total)}</em>
+          <em className="ml-auto not-italic tabular-nums">{seconds(total)}</em>
           <Chevron className={cx("h-3 w-3 text-faint transition-transform", open && "rotate-180")} />
         </div>
       </button>
       {open ? (
         <ol className="border-t border-line px-3.5 py-2">
-          <li className="flex gap-2.5 py-1.5 text-[11.5px] text-muted">
+          <li className="flex gap-2.5 py-1.5 text-[12.5px] text-muted">
             <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-linestrong" />
             <span className="min-w-0 flex-1 text-ink">
               Routed to {message.routing?.selectedModel ?? message.model ?? "the model"}
@@ -249,18 +250,18 @@ function TraceCard({ message }: { message: Msg }) {
             </span>
           </li>
           {timed.map((call) => (
-            <li key={call.id} className="flex gap-2.5 py-1.5 text-[11.5px] text-muted">
+            <li key={call.id} className="flex gap-2.5 py-1.5 text-[12.5px] text-muted">
               <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
               <span className="min-w-0 flex-1 text-ink">
-                <span className="font-mono text-[11px]">{call.name}</span> · {call.server}
+                <span className="font-medium">{call.name}</span> · {call.server}
               </span>
-              <em className="shrink-0 font-mono not-italic tabular-nums">{seconds(call.ms)}</em>
+              <em className="shrink-0 not-italic tabular-nums">{seconds(call.ms)}</em>
             </li>
           ))}
-          <li className="flex gap-2.5 py-1.5 text-[11.5px] text-muted">
+          <li className="flex gap-2.5 py-1.5 text-[12.5px] text-muted">
             <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-linestrong" />
             <span className="min-w-0 flex-1 text-ink">Wrote the reply</span>
-            <em className="shrink-0 font-mono not-italic tabular-nums">{seconds(writingMs)}</em>
+            <em className="shrink-0 not-italic tabular-nums">{seconds(writingMs)}</em>
           </li>
         </ol>
       ) : null}
@@ -1020,6 +1021,34 @@ export default function Message({
         <ApprovalCard key={call.id} call={call} />
       ))}
 
+      {!message.pending && sources.length ? (
+        <details className="mb-3 max-w-[720px] overflow-hidden rounded-xl border border-line bg-panel">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3.5 py-2.5 text-[12.5px] text-ink transition-colors hover:bg-hover/60">
+            <Globe className="h-3.5 w-3.5 shrink-0 text-accent-soft" />
+            <span className="min-w-0 flex-1 truncate">
+              Searched the web · {sources.length} source{sources.length === 1 ? "" : "s"}
+            </span>
+            <Chevron className="h-3 w-3 shrink-0 text-faint" />
+          </summary>
+          <ol className="border-t border-line">
+            {sources.map((source) => (
+              <li key={source.n}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="flex items-center gap-2.5 px-3.5 py-1.5 text-[12.5px] text-ink transition-colors hover:bg-hover/60"
+                >
+                  <span className="w-4 shrink-0 text-right text-[11px] tabular-nums text-accent-soft">{source.n}</span>
+                  <span className="min-w-0 flex-1 truncate">{source.title}</span>
+                  <span className="shrink-0 text-[11.5px] text-faint">{source.domain}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+
       {message.thinking ? (
         <ThinkingBlock
           text={message.thinking}
@@ -1064,12 +1093,12 @@ export default function Message({
                       href={source.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="group/note grid grid-cols-[16px_1fr] gap-1.5 text-[11.5px] leading-snug text-muted no-underline transition-colors hover:text-ink"
+                      className="group/note grid grid-cols-[16px_1fr] gap-1.5 text-[12.5px] leading-snug text-muted no-underline transition-colors hover:text-ink"
                     >
-                      <b className="font-mono text-[10.5px] font-bold text-accent-soft">{source.n}</b>
+                      <b className="text-[11.5px] font-bold tabular-nums text-accent-soft">{source.n}</b>
                       <span className="min-w-0">
                         <span className="text-ink group-hover/note:text-accent-pale">{source.title}</span>
-                        <small className="mt-0.5 block text-[10.5px] text-faint">
+                        <small className="mt-0.5 block text-[11.5px] text-faint">
                           {source.domain}
                           {source.date ? ` · ${source.date}` : ""}
                         </small>
